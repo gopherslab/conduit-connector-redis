@@ -10,6 +10,7 @@ const (
 	ConfigKeyKey      = "redis_key"
 	ConfigKeyDatabase = "database"
 	ConfigKeyPassword = "password"
+	ConfigKeyChannel  = "channel"
 )
 
 type Config struct {
@@ -18,6 +19,7 @@ type Config struct {
 	Database string
 	Key      string
 	Password string
+	Channel  string
 }
 
 func Parse(cfg map[string]string) (Config, error) {
@@ -43,6 +45,7 @@ func Parse(cfg map[string]string) (Config, error) {
 		Port:     port,
 		Database: database,
 		Password: cfg[ConfigKeyPassword],
+		Channel:  cfg[ConfigKeyChannel],
 	}
 
 	return config, nil

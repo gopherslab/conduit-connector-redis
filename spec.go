@@ -55,6 +55,11 @@ func Specification() sdk.Specification {
 				Required:    false,
 				Description: "Password to the redis source.",
 			},
+			config.ConfigKeyChannel: {
+				Default:     "",
+				Required:    true,
+				Description: "channel to the redis source listen.",
+			},
 		},
 	}
 }
