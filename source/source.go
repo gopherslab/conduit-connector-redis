@@ -49,12 +49,17 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 }
 
 func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
-	r, err := NewCDCIterator(ctx, s.client, s.config.Key)
+	NewCDCIterator(ctx, s.client, s.config.Key)
 
+	if !s.iterator.HasNext(ctx) {
+		return sdk.Record{}, sdk.ErrBackoffRetry
+	}
+	r, err := s.iterator.Next(ctx)
 	if err != nil {
 		return sdk.Record{}, err
 	}
-	return *r, nil
+	return r, nil
+
 }
 
 func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
