@@ -19,7 +19,7 @@ type Source struct {
 type Iterator interface {
 	HasNext(ctx context.Context) bool
 	Next(ctx context.Context) (sdk.Record, error)
-	Stop()
+	// Stop()
 }
 
 func NewSource() sdk.Source {
@@ -45,18 +45,20 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 	}
 	s.client = redisClient
 
+	s.iterator, err = NewCDCIterator(ctx, s.client, s.config.Key)
+	if err != nil {
+		return fmt.Errorf("couldn't create a iterator: %w", err)
+	}
 	return nil
 }
 
 func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
-	NewCDCIterator(ctx, s.client, s.config.Key)
-
 	if !s.iterator.HasNext(ctx) {
 		return sdk.Record{}, sdk.ErrBackoffRetry
 	}
 	r, err := s.iterator.Next(ctx)
 	if err != nil {
-		return sdk.Record{}, err
+		return sdk.Record{}, nil
 	}
 	return r, nil
 
