@@ -44,7 +44,6 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 		return fmt.Errorf("failed to connect redis client:%w", err)
 	}
 	s.client = redisClient
-
 	s.iterator, err = NewCDCIterator(ctx, s.client, s.config.Key)
 	if err != nil {
 		return fmt.Errorf("couldn't create a iterator: %w", err)
@@ -56,11 +55,11 @@ func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
 	if !s.iterator.HasNext(ctx) {
 		return sdk.Record{}, sdk.ErrBackoffRetry
 	}
-	r, err := s.iterator.Next(ctx)
+	data, err := s.iterator.Next(ctx)
 	if err != nil {
-		return sdk.Record{}, nil
+		return sdk.Record{}, err
 	}
-	return r, nil
+	return data, nil
 
 }
 
