@@ -9,10 +9,10 @@ import (
 )
 
 type CDCIterator struct {
-	client     *redis.Conn
-	key        string
-	psc        redis.PubSubConn
-	testRecord map[string]sdk.Record
+	client  *redis.Conn
+	key     string
+	psc     redis.PubSubConn
+	records map[string]sdk.Record
 }
 
 func NewCDCIterator(ctx context.Context, client redis.Conn, key string) (*CDCIterator, error) {
@@ -20,10 +20,10 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, key string) (*CDCIte
 	var wg sync.WaitGroup
 	wg.Add(1)
 	cdc := &CDCIterator{
-		client:     &client,
-		key:        key,
-		psc:        psc,
-		testRecord: make(map[string]sdk.Record),
+		client:  &client,
+		key:     key,
+		psc:     psc,
+		records: make(map[string]sdk.Record),
 	}
 	go func() {
 		for {
@@ -32,7 +32,7 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, key string) (*CDCIte
 				data := sdk.Record{
 					Payload: sdk.RawData(n.Data),
 				}
-				cdc.testRecord[cdc.key] = data
+				cdc.records[cdc.key] = data
 			case redis.Subscription:
 				if n.Count == 0 {
 					return
@@ -51,11 +51,11 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, key string) (*CDCIte
 	return cdc, nil
 }
 func (i *CDCIterator) HasNext(ctx context.Context) bool {
-	return len(i.testRecord) > 0
+	return len(i.records) > 0
 }
 
 func (i *CDCIterator) Next(ctx context.Context) (sdk.Record, error) {
-	val := i.testRecord[i.key]
-	delete(i.testRecord, i.key)
+	val := i.records[i.key]
+	delete(i.records, i.key)
 	return val, nil
 }
