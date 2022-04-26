@@ -11,6 +11,7 @@ const (
 	ConfigKeyDatabase = "database"
 	ConfigKeyPassword = "password"
 	ConfigKeyChannel  = "channel"
+	ConfigKeyMode     = "mode"
 )
 
 type Config struct {
@@ -20,7 +21,16 @@ type Config struct {
 	Key      string
 	Password string
 	Channel  string
+	Mode     Mode
 }
+type Mode string
+
+const (
+	ModePubSub string = "pubsub"
+	ModeStream string = "stream"
+)
+
+var modeAll = []string{ModePubSub, ModeStream}
 
 func Parse(cfg map[string]string) (Config, error) {
 	host, ok := cfg[ConfigKeyHost]
@@ -46,11 +56,25 @@ func Parse(cfg map[string]string) (Config, error) {
 		Database: database,
 		Password: cfg[ConfigKeyPassword],
 		Channel:  cfg[ConfigKeyChannel],
+		Mode:     Mode(ModePubSub),
 	}
-
+	if modeRaw := cfg[ConfigKeyMode]; modeRaw != "" {
+		if !isModeSupported(modeRaw) {
+			return Config{}, fmt.Errorf("%q contains unsupported value %q, expected one of %v", ConfigKeyMode, modeRaw, modeAll)
+		}
+		config.Mode = Mode(modeRaw)
+	}
 	return config, nil
 }
 
+func isModeSupported(modeRaw string) bool {
+	for _, m := range modeAll {
+		if string(m) == modeRaw {
+			return true
+		}
+	}
+	return false
+}
 func requiredConfigErr(name string) error {
 	return fmt.Errorf("%q config value must be set", name)
 }

@@ -10,18 +10,18 @@ import (
 
 type CDCIterator struct {
 	client  *redis.Conn
-	key     string
+	channel string
 	psc     redis.PubSubConn
 	records map[string]sdk.Record
 }
 
-func NewCDCIterator(ctx context.Context, client redis.Conn, key string) (*CDCIterator, error) {
+func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CDCIterator, error) {
 	psc := redis.PubSubConn{Conn: client}
 	var wg sync.WaitGroup
 	wg.Add(1)
 	cdc := &CDCIterator{
 		client:  &client,
-		key:     key,
+		channel: channel,
 		psc:     psc,
 		records: make(map[string]sdk.Record),
 	}
@@ -32,7 +32,7 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, key string) (*CDCIte
 				data := sdk.Record{
 					Payload: sdk.RawData(n.Data),
 				}
-				cdc.records[cdc.key] = data
+				cdc.records[cdc.channel] = data
 			case redis.Subscription:
 				if n.Count == 0 {
 					return
@@ -44,7 +44,7 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, key string) (*CDCIte
 	}()
 	go func() {
 		defer wg.Done()
-		psc.Subscribe(key)
+		psc.Subscribe(channel)
 	}()
 
 	wg.Wait()
@@ -55,7 +55,10 @@ func (i *CDCIterator) HasNext(ctx context.Context) bool {
 }
 
 func (i *CDCIterator) Next(ctx context.Context) (sdk.Record, error) {
-	val := i.records[i.key]
-	delete(i.records, i.key)
+	val := i.records[i.channel]
+	delete(i.records, i.channel)
 	return val, nil
+}
+func (i *CDCIterator) Stop(ctx context.Context) {
+
 }

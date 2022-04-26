@@ -2,8 +2,9 @@ package config
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParse(t *testing.T) {
@@ -87,8 +88,12 @@ func TestParse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, _ := Parse(tt.config); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Parse = %v, want = %v", got, tt.want)
+			got, err := Parse(tt.config)
+			if tt.err != nil {
+				assert.NotNil(t, err)
+			} else {
+				assert.NotNil(t, got)
+				assert.Equal(t, got, tt.want)
 			}
 		})
 	}

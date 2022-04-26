@@ -60,6 +60,11 @@ func Specification() sdk.Specification {
 				Required:    true,
 				Description: "channel to the redis source listen.",
 			},
+			config.ConfigKeyMode: {
+				Default:     "pubsub",
+				Required:    false,
+				Description: "Sets the connector's operation mode. Available modes: ['pubsub', 'stream']",
+			},
 		},
 	}
 }
