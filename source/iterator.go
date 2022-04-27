@@ -12,7 +12,7 @@ type CDCIterator struct {
 	client     *redis.Conn
 	channel    string
 	psc        redis.PubSubConn
-	testRecord []map[string]sdk.Record
+	testRecord []sdk.Record
 }
 
 func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CDCIterator, error) {
@@ -35,10 +35,10 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 					Str("channel", n.Channel).
 					Str("data", string(n.Data)).
 					Msg("message")
-				c := map[string]sdk.Record{
-					n.Channel: data,
-				}
-				cdc.testRecord = append(cdc.testRecord, c)
+				// c := map[string]sdk.Record{
+				// 	n.Channel: data,
+				// }
+				cdc.testRecord = append(cdc.testRecord, data)
 			case redis.Subscription:
 				if n.Count == 0 {
 					return
@@ -61,14 +61,14 @@ func (i *CDCIterator) HasNext(ctx context.Context) bool {
 }
 
 func (i *CDCIterator) Next(ctx context.Context) (sdk.Record, error) {
-	val := i.testRecord[0][i.channel]
+	val := i.testRecord[0]
 	remove(&i.testRecord, 0)
 	return val, nil
 }
 func (i *CDCIterator) Stop(ctx context.Context) {
 
 }
-func remove(a *[]map[string]sdk.Record, i int) *[]map[string]sdk.Record {
+func remove(a *[]sdk.Record, i int) *[]sdk.Record {
 	copy((*a)[i:], (*a)[i+1:])
 	*a = (*a)[:len((*a))-1] // Truncate slice.
 	return a
