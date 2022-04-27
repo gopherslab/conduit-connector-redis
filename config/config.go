@@ -37,23 +37,15 @@ func Parse(cfg map[string]string) (Config, error) {
 	if !ok {
 		return Config{}, requiredConfigErr(ConfigKeyHost)
 	}
-	key, ok := cfg[ConfigKeyKey]
-	if !ok {
-		return Config{}, requiredConfigErr(ConfigKeyKey)
-	}
 	port, ok := cfg[ConfigKeyPort]
 	if !ok {
 		return Config{}, requiredConfigErr(ConfigKeyPort)
 	}
-	database, ok := cfg[ConfigKeyDatabase]
-	if !ok {
-		return Config{}, requiredConfigErr(ConfigKeyDatabase)
-	}
 	config := Config{
 		Host:     host,
-		Key:      key,
+		Key:      cfg[ConfigKeyKey],
 		Port:     port,
-		Database: database,
+		Database: cfg[ConfigKeyDatabase],
 		Password: cfg[ConfigKeyPassword],
 		Channel:  cfg[ConfigKeyChannel],
 		Mode:     Mode(ModePubSub),

@@ -42,12 +42,12 @@ func Specification() sdk.Specification {
 			},
 			config.ConfigKeyKey: {
 				Default:     "",
-				Required:    true,
+				Required:    false,
 				Description: "key name for connector to read.",
 			},
 			config.ConfigKeyDatabase: {
 				Default:     "",
-				Required:    true,
+				Required:    false,
 				Description: "database name for the redis source",
 			},
 			config.ConfigKeyPassword: {
@@ -57,7 +57,7 @@ func Specification() sdk.Specification {
 			},
 			config.ConfigKeyChannel: {
 				Default:     "",
-				Required:    true,
+				Required:    false,
 				Description: "channel to the redis source listen.",
 			},
 			config.ConfigKeyMode: {

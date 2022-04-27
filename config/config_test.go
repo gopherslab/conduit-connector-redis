@@ -24,6 +24,7 @@ func TestParse(t *testing.T) {
 				ConfigKeyDatabase: "0",
 				ConfigKeyPassword: "12345678",
 				ConfigKeyChannel:  "my_channel",
+				ConfigKeyMode:     "pubsub",
 			},
 			want: Config{
 				Host:     "localhost",
@@ -32,6 +33,7 @@ func TestParse(t *testing.T) {
 				Database: "0",
 				Password: "12345678",
 				Channel:  "my_channel",
+				Mode:     "pubsub",
 			},
 			err: nil,
 		},
@@ -43,6 +45,7 @@ func TestParse(t *testing.T) {
 				ConfigKeyDatabase: "0",
 				ConfigKeyPassword: "12345678",
 				ConfigKeyChannel:  "my_channel",
+				ConfigKeyMode:     "pubsub",
 			},
 			want: Config{},
 			err:  fmt.Errorf("port config value must be set"),
@@ -61,29 +64,17 @@ func TestParse(t *testing.T) {
 			err:  fmt.Errorf("host config value must be set"),
 		},
 		{
-			name: "Invalid database",
-			config: map[string]string{
-				ConfigKeyHost: "localhost",
-				ConfigKeyPort: "6380",
-				ConfigKeyKey:  "my_key",
-
-				ConfigKeyPassword: "12345678",
-				ConfigKeyChannel:  "my_channel",
-			},
-			want: Config{},
-			err:  fmt.Errorf("database config value must be set"),
-		},
-		{
-			name: "Invalid database",
+			name: "Invalid Mode",
 			config: map[string]string{
 				ConfigKeyHost:     "localhost",
 				ConfigKeyPort:     "6380",
-				ConfigKeyDatabase: "0",
+				ConfigKeyKey:      "my_key",
 				ConfigKeyPassword: "12345678",
 				ConfigKeyChannel:  "my_channel",
+				ConfigKeyMode:     "test",
 			},
 			want: Config{},
-			err:  fmt.Errorf("key config value must be set"),
+			err:  fmt.Errorf("mode contains unsupported value test, expected one of [pubsub stream]"),
 		},
 	}
 	for _, tt := range tests {
