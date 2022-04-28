@@ -56,13 +56,18 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 			}
 		}
 	}()
+	errs := make(chan error)
 	go func() {
 		defer wg.Done()
-		psc.Subscribe(channel)
+		err := psc.Subscribe(channel)
+		if err != nil {
+			errs <- err
+		}
+		close(errs)
 	}()
 
 	wg.Wait()
-	return cdc, nil
+	return cdc, <-errs
 }
 func (i *CDCIterator) HasNext(ctx context.Context) bool {
 	return len(i.records) > 0
