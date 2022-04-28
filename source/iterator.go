@@ -9,10 +9,11 @@ import (
 )
 
 type CDCIterator struct {
-	client     *redis.Conn
-	channel    string
-	psc        redis.PubSubConn
-	testRecord []sdk.Record
+	client  *redis.Conn
+	channel string
+	psc     redis.PubSubConn
+	records []sdk.Record
+	quit    chan bool
 }
 
 func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CDCIterator, error) {
@@ -23,8 +24,15 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 		client:  &client,
 		channel: channel,
 		psc:     psc,
+		quit:    make(chan bool),
 	}
 	go func() {
+		select {
+		case <-cdc.quit:
+			return
+		default:
+
+		}
 		for {
 			switch n := psc.Receive().(type) {
 			case redis.Message:
@@ -38,7 +46,7 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 				// c := map[string]sdk.Record{
 				// 	n.Channel: data,
 				// }
-				cdc.testRecord = append(cdc.testRecord, data)
+				cdc.records = append(cdc.records, data)
 			case redis.Subscription:
 				if n.Count == 0 {
 					return
@@ -57,19 +65,21 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 	return cdc, nil
 }
 func (i *CDCIterator) HasNext(ctx context.Context) bool {
-	return len(i.testRecord) > 0
+	return len(i.records) > 0
 }
 
 func (i *CDCIterator) Next(ctx context.Context) (sdk.Record, error) {
-	val := i.testRecord[0]
-	remove(&i.testRecord, 0)
+	val := i.records[0]
+	remove(&i.records, 0)
 	return val, nil
 }
-func (i *CDCIterator) Stop(ctx context.Context) {
-
+func (i *CDCIterator) Stop(ctx context.Context) error {
+	i.quit <- true
+	close(i.quit)
+	return nil
 }
 func remove(a *[]sdk.Record, i int) *[]sdk.Record {
 	copy((*a)[i:], (*a)[i+1:])
-	*a = (*a)[:len((*a))-1] // Truncate slice.
+	*a = (*a)[:len((*a))-1]
 	return a
 }
