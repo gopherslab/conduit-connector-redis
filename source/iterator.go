@@ -24,7 +24,7 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 		client:  &client,
 		channel: channel,
 		psc:     psc,
-		quit:    make(chan bool),
+		quit:    make(chan bool, 1),
 	}
 	go func() {
 		select {
@@ -78,7 +78,7 @@ func (i *CDCIterator) Next(ctx context.Context) (sdk.Record, error) {
 	remove(&i.records, 0)
 	return val, nil
 }
-func (i *CDCIterator) Stop(ctx context.Context) error {
+func (i *CDCIterator) Stop() error {
 	i.quit <- true
 	close(i.quit)
 	return nil

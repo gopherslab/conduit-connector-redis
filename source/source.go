@@ -19,7 +19,7 @@ type Source struct {
 type Iterator interface {
 	HasNext(ctx context.Context) bool
 	Next(ctx context.Context) (sdk.Record, error)
-	Stop(ctx context.Context) error
+	Stop() error
 }
 
 func NewSource() sdk.Source {
@@ -73,8 +73,10 @@ func (s *Source) Teardown(ctx context.Context) error {
 			return fmt.Errorf("failed to close DB connection: %w", err)
 		}
 	}
-	if err := s.iterator.Stop(ctx); err != nil {
-		return fmt.Errorf("failed to close iterator: %w", err)
+	if s.iterator != nil {
+		s.iterator.Stop()
+		s.iterator = nil
+
 	}
 	return nil
 }
