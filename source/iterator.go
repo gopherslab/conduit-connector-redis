@@ -31,32 +31,29 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 		case <-cdc.quit:
 			return
 		default:
-
-		}
-		for {
-			switch n := psc.Receive().(type) {
-			case redis.Message:
-				data := sdk.Record{
-					Payload: sdk.RawData(n.Data),
-				}
-				sdk.Logger(ctx).Info().
-					Str("channel", n.Channel).
-					Str("data", string(n.Data)).
-					Msg("message")
-				// c := map[string]sdk.Record{
-				// 	n.Channel: data,
-				// }
-				cdc.records = append(cdc.records, data)
-			case redis.Subscription:
-				if n.Count == 0 {
+			for {
+				switch n := psc.Receive().(type) {
+				case redis.Message:
+					data := sdk.Record{
+						Payload: sdk.RawData(n.Data),
+					}
+					sdk.Logger(ctx).Info().
+						Str("channel", n.Channel).
+						Str("data", string(n.Data)).
+						Msg("message")
+					cdc.records = append(cdc.records, data)
+				case redis.Subscription:
+					if n.Count == 0 {
+						return
+					}
+				case error:
 					return
 				}
-			case error:
-				return
 			}
 		}
+
 	}()
-	errs := make(chan error)
+	errs := make(chan error, 1)
 	go func() {
 		defer wg.Done()
 		err := psc.Subscribe(channel)
