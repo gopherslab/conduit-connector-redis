@@ -9,7 +9,6 @@ import (
 )
 
 type CDCIterator struct {
-	client  *redis.Conn
 	channel string
 	psc     redis.PubSubConn
 	records []sdk.Record
@@ -19,12 +18,12 @@ type CDCIterator struct {
 func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CDCIterator, error) {
 	psc := redis.PubSubConn{Conn: client}
 	var wg sync.WaitGroup
+	quit := make(chan bool, 1)
 	wg.Add(1)
 	cdc := &CDCIterator{
-		client:  &client,
 		channel: channel,
 		psc:     psc,
-		quit:    make(chan bool, 1),
+		quit:    quit,
 	}
 	go func() {
 		select {
