@@ -1,14 +1,30 @@
+/*
+Copyright © 2022 Meroxa, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package config
 
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestParse(t *testing.T) {
-
 	tests := []struct {
 		name   string
 		config map[string]string
@@ -18,47 +34,49 @@ func TestParse(t *testing.T) {
 		{
 			name: "Login with basic authentication",
 			config: map[string]string{
-				ConfigKeyHost:     "localhost",
-				ConfigKeyPort:     "6379",
-				ConfigKeyKey:      "my_key",
-				ConfigKeyDatabase: "0",
-				ConfigKeyPassword: "12345678",
-				ConfigKeyChannel:  "my_channel",
-				ConfigKeyMode:     "pubsub",
+				KeyHost:     "localhost",
+				KeyPort:     "6379",
+				KeyRedisKey: "my_key",
+				KeyDatabase: "0",
+				KeyPassword: "12345678",
+				KeyMode:     "pubsub",
 			},
 			want: Config{
-				Host:     "localhost",
-				Key:      "my_key",
-				Port:     "6379",
-				Database: "0",
-				Password: "12345678",
-				Channel:  "my_channel",
-				Mode:     "pubsub",
+				Host:          "localhost",
+				Key:           "my_key",
+				Port:          "6379",
+				Database:      "0",
+				Password:      "12345678",
+				Mode:          "pubsub",
+				PollingPeriod: time.Second,
 			},
 			err: nil,
 		},
 		{
-			name: "Invalid port",
+			name: "Empty host and port passed",
 			config: map[string]string{
-				ConfigKeyHost:     "localhost",
-				ConfigKeyKey:      "my_key",
-				ConfigKeyDatabase: "0",
-				ConfigKeyPassword: "12345678",
-				ConfigKeyChannel:  "my_channel",
-				ConfigKeyMode:     "pubsub",
+				KeyRedisKey: "my_key",
+				KeyDatabase: "0",
+				KeyPassword: "12345678",
+				KeyMode:     "pubsub",
 			},
-			want: Config{},
-			err:  fmt.Errorf("port config value must be set"),
+			want: Config{
+				Host:          "localhost",
+				Key:           "my_key",
+				Port:          "6379",
+				Database:      "0",
+				Password:      "12345678",
+				Mode:          "pubsub",
+				PollingPeriod: time.Second,
+			},
+			err: nil,
 		},
 		{
-			name: "Invalid host",
+			name: "Empty key passed",
 			config: map[string]string{
-
-				ConfigKeyPort:     "6380",
-				ConfigKeyKey:      "my_key",
-				ConfigKeyDatabase: "0",
-				ConfigKeyPassword: "12345678",
-				ConfigKeyChannel:  "my_channel",
+				KeyPort:     "6380",
+				KeyDatabase: "0",
+				KeyPassword: "12345678",
 			},
 			want: Config{},
 			err:  fmt.Errorf("host config value must be set"),
@@ -66,12 +84,11 @@ func TestParse(t *testing.T) {
 		{
 			name: "Invalid Mode",
 			config: map[string]string{
-				ConfigKeyHost:     "localhost",
-				ConfigKeyPort:     "6380",
-				ConfigKeyKey:      "my_key",
-				ConfigKeyPassword: "12345678",
-				ConfigKeyChannel:  "my_channel",
-				ConfigKeyMode:     "test",
+				KeyHost:     "localhost",
+				KeyPort:     "6380",
+				KeyRedisKey: "my_key",
+				KeyPassword: "12345678",
+				KeyMode:     "test",
 			},
 			want: Config{},
 			err:  fmt.Errorf("mode contains unsupported value test, expected one of [pubsub stream]"),
