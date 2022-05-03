@@ -1,3 +1,18 @@
+/*
+Copyright © 2022 Meroxa, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package source
 
 import (
@@ -60,7 +75,6 @@ func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
 		return sdk.Record{}, err
 	}
 	return data, nil
-
 }
 
 func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
@@ -68,15 +82,16 @@ func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
 }
 
 func (s *Source) Teardown(ctx context.Context) error {
-	// if s.client != nil {
 	if err := (s.client).Close(); err != nil {
 		return fmt.Errorf("failed to close DB connection: %w", err)
 	}
-	// }
-	if s.iterator != nil {
-		s.iterator.Stop()
-		s.iterator = nil
 
+	if s.iterator != nil {
+		err := s.iterator.Stop()
+		if err != nil {
+			return err
+		}
+		s.iterator = nil
 	}
 	return nil
 }
