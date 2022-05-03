@@ -14,7 +14,7 @@ import (
 )
 
 func TestConfigure(t *testing.T) {
-	invalid_cfg := map[string]string{
+	invalidCfg := map[string]string{
 		"host":     "localhost",
 		"key":      "key",
 		"port":     "6567",
@@ -23,7 +23,7 @@ func TestConfigure(t *testing.T) {
 		"channel":  "sample",
 		"mode":     "test",
 	}
-	valid_config := map[string]string{
+	validConfig := map[string]string{
 		"host":     "localhost",
 		"key":      "key",
 		"port":     "6567",
@@ -44,13 +44,13 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "valid config",
 			field: field{
-				cfg: valid_config,
+				cfg: validConfig,
 			},
 			errMsg: false,
 		}, {
-			name: "valid config",
+			name: "invalid config",
 			field: field{
-				cfg: invalid_cfg,
+				cfg: invalidCfg,
 			},
 			errMsg: true,
 		},
@@ -160,7 +160,7 @@ func TestTeardown(t *testing.T) {
 		{
 			name: "no client",
 			source: Source{
-				client:   nil,
+				client:   conn,
 				iterator: nil,
 			},
 			err: nil,

@@ -68,11 +68,11 @@ func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
 }
 
 func (s *Source) Teardown(ctx context.Context) error {
-	if s.client != nil {
-		if err := (s.client).Close(); err != nil {
-			return fmt.Errorf("failed to close DB connection: %w", err)
-		}
+	// if s.client != nil {
+	if err := (s.client).Close(); err != nil {
+		return fmt.Errorf("failed to close DB connection: %w", err)
 	}
+	// }
 	if s.iterator != nil {
 		s.iterator.Stop()
 		s.iterator = nil
