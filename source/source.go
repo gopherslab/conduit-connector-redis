@@ -13,7 +13,7 @@ type Source struct {
 	sdk.UnimplementedSource
 
 	config   config.Config
-	client   *redis.Conn
+	client   redis.Conn
 	iterator Iterator
 }
 type Iterator interface {
@@ -43,8 +43,8 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect redis client:%w", err)
 	}
-	s.client = &redisClient
-	s.iterator, err = NewCDCIterator(ctx, *s.client, s.config.Channel)
+	s.client = redisClient
+	s.iterator, err = NewCDCIterator(ctx, s.client, s.config.Channel)
 	if err != nil {
 		return fmt.Errorf("couldn't create a iterator: %w", err)
 	}
@@ -69,7 +69,7 @@ func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
 
 func (s *Source) Teardown(ctx context.Context) error {
 	if s.client != nil {
-		if err := (*s.client).Close(); err != nil {
+		if err := (s.client).Close(); err != nil {
 			return fmt.Errorf("failed to close DB connection: %w", err)
 		}
 	}
