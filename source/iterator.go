@@ -92,11 +92,8 @@ func NewCDCIterator2(ctx context.Context, client *goredis.Client, consumer strin
 	}
 	// consumer := "tickets"
 	// consumersGroup := "tickets-consumer-group"
-	err := client.XGroupCreate(ctx, consumer, consumersGroup, "0").Err()
+	client.XGroupCreate(ctx, consumer, consumersGroup, "0").Err()
 	uniqueID := xid.New().String()
-	if err != nil {
-		return cdc, err
-	}
 	go func() {
 		select {
 		case <-cdc.quit:
