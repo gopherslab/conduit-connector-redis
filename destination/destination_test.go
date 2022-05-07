@@ -113,11 +113,11 @@ func TestWrite(t *testing.T) {
 	conn := redigomock.NewConn()
 	jsonString := `{"some":"json"}`
 
-	data := []byte(jsonString)
-	validData := map[string]string{
+	invalidData := []byte(jsonString)
+	data := map[string]string{
 		"key": jsonString,
 	}
-	valid_data, _ := json.Marshal(validData)
+	validData, _ := json.Marshal(data)
 
 	tests := []struct {
 		name        string
@@ -128,7 +128,7 @@ func TestWrite(t *testing.T) {
 		{
 			name: "invalid channel",
 			data: sdk.Record{
-				Payload: sdk.RawData(valid_data),
+				Payload: sdk.RawData(validData),
 			},
 			err: fmt.Errorf("error publishing message to channel()"),
 			destination: Destination{
@@ -141,9 +141,9 @@ func TestWrite(t *testing.T) {
 		{
 			name: " stream data",
 			data: sdk.Record{
-				Payload: sdk.RawData(valid_data),
+				Payload: sdk.RawData(validData),
 			},
-			err: fmt.Errorf("invalid payload:"),
+			err: fmt.Errorf("invalid payload"),
 			destination: Destination{
 				config: config.Config{
 					Mode: "stream",
@@ -154,7 +154,7 @@ func TestWrite(t *testing.T) {
 		{
 			name: "invalid stream",
 			data: sdk.Record{
-				Payload: sdk.RawData(data),
+				Payload: sdk.RawData(invalidData),
 			},
 			err: fmt.Errorf("invalid payload: invalid json received in payload: invalid character 'A' looking for beginning of value"),
 			destination: Destination{
@@ -167,7 +167,7 @@ func TestWrite(t *testing.T) {
 		{
 			name: "invalid mode",
 			data: sdk.Record{
-				Payload: sdk.RawData(valid_data),
+				Payload: sdk.RawData(validData),
 			},
 			err: fmt.Errorf("invalid mode(test) encountered"),
 			destination: Destination{
