@@ -156,7 +156,7 @@ func TestNewCDCIterator(t *testing.T) {
 }
 func TestNewCDCIterator2(t *testing.T) {
 	consumer := "tickets"
-	consumer_group := "tickets-consumer-group"
+	consumerGroup := "tickets-consumer-group"
 	redisServer := mockRedis()
 	redisClient := goredis.NewClient(&goredis.Options{
 		Addr: redisServer.Addr(),
@@ -179,7 +179,7 @@ func TestNewCDCIterator2(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := NewCDCIterator2(context.Background(), redisClient, consumer, consumer_group)
+			res, err := NewCDCIterator2(context.Background(), redisClient, consumer, consumerGroup)
 			if tt.err != nil {
 				assert.NotNil(t, err)
 			} else {

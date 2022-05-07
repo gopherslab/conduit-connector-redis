@@ -123,7 +123,7 @@ func NewCDCIterator2(ctx context.Context, client *goredis.Client, consumer strin
 						return
 					}
 					data := sdk.Record{
-						Payload: sdk.RawData([]byte(value)),
+						Payload: sdk.RawData((value)),
 					}
 					cdc.records = append(cdc.records, data)
 					client.XAck(ctx, consumer, consumersGroup, messageID)
