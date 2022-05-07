@@ -20,23 +20,25 @@ import (
 )
 
 const (
-	ConfigKeyHost     = "host"
-	ConfigKeyPort     = "port"
-	ConfigKeyKey      = "redis_key"
-	ConfigKeyDatabase = "database"
-	ConfigKeyPassword = "password"
-	ConfigKeyChannel  = "channel"
-	ConfigKeyMode     = "mode"
+	ConfigKeyHost          = "host"
+	ConfigKeyPort          = "port"
+	ConfigKeyConsumer      = "consumer"
+	ConfigKeyConsumerGroup = "consumer_group"
+	ConfigKeyDatabase      = "database"
+	ConfigKeyPassword      = "password"
+	ConfigKeyChannel       = "channel"
+	ConfigKeyMode          = "mode"
 )
 
 type Config struct {
-	Host     string
-	Port     string
-	Database string
-	Key      string
-	Password string
-	Channel  string
-	Mode     Mode
+	Host          string
+	Port          string
+	Database      string
+	Consumer      string
+	ConsumerGroup string
+	Password      string
+	Channel       string
+	Mode          Mode
 }
 type Mode string
 
@@ -57,13 +59,14 @@ func Parse(cfg map[string]string) (Config, error) {
 		return Config{}, requiredConfigErr(ConfigKeyPort)
 	}
 	config := Config{
-		Host:     host,
-		Key:      cfg[ConfigKeyKey],
-		Port:     port,
-		Database: cfg[ConfigKeyDatabase],
-		Password: cfg[ConfigKeyPassword],
-		Channel:  cfg[ConfigKeyChannel],
-		Mode:     Mode(ModePubSub),
+		Host:          host,
+		Consumer:      cfg[ConfigKeyConsumer],
+		ConsumerGroup: cfg[ConfigKeyConsumerGroup],
+		Port:          port,
+		Database:      cfg[ConfigKeyDatabase],
+		Password:      cfg[ConfigKeyPassword],
+		Channel:       cfg[ConfigKeyChannel],
+		Mode:          Mode(ModePubSub),
 	}
 	if modeRaw := cfg[ConfigKeyMode]; modeRaw != "" {
 		if !isModeSupported(modeRaw) {

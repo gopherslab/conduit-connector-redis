@@ -27,6 +27,7 @@ require (
 	github.com/oklog/run v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rafaeljusto/redigomock v2.4.0+incompatible // indirect
+	github.com/rs/xid v1.4.0 // indirect
 	github.com/rs/zerolog v1.26.1 // indirect
 	github.com/stretchr/objx v0.1.0 // indirect
 	github.com/stretchr/testify v1.7.1 // indirect

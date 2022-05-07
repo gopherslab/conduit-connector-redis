@@ -19,7 +19,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alicebob/miniredis"
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	goredis "github.com/go-redis/redis/v8"
 	redis "github.com/gomodule/redigo/redis"
 	"github.com/rafaeljusto/redigomock"
 	"github.com/stretchr/testify/assert"
@@ -151,4 +153,47 @@ func TestNewCDCIterator(t *testing.T) {
 			}
 		})
 	}
+}
+func TestNewCDCIterator2(t *testing.T) {
+	consumer := "tickets"
+	consumer_group := "tickets-consumer-group"
+	redisServer := mockRedis()
+	redisClient := goredis.NewClient(&goredis.Options{
+		Addr: redisServer.Addr(),
+	})
+	response := CDCIterator{
+		channel: consumer,
+		records: []sdk.Record(nil),
+		quit:    make(chan bool, 1),
+	}
+	tests := []struct {
+		name     string
+		response *CDCIterator
+		err      error
+	}{
+		{
+			name:     "Success",
+			response: &response,
+			err:      nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := NewCDCIterator2(context.Background(), redisClient, consumer, consumer_group)
+			if tt.err != nil {
+				assert.NotNil(t, err)
+			} else {
+				assert.NotNil(t, res)
+			}
+		})
+	}
+}
+func mockRedis() *miniredis.Miniredis {
+	s, err := miniredis.Run()
+
+	if err != nil {
+		panic(err)
+	}
+
+	return s
 }

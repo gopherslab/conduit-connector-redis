@@ -23,26 +23,26 @@ import (
 // Specification returns the connector's specification.
 func Specification() sdk.Specification {
 	return sdk.Specification{
-		Name:    "Redis",
-		Summary: "A Redis source and destination plugin for Conduit, written in Go.",
-		Version: "v0.1.0",
-		Author:  "gopherslab,Inc.",
+		Name:              "Redis",
+		Summary:           "A Redis source and destination plugin for Conduit, written in Go.",
+		Version:           "v0.1.0",
+		Author:            "gopherslab,Inc.",
 		DestinationParams: map[string]sdk.Parameter{
-			config.ConfigKeyHost: {
-				Default:     "",
-				Required:    true,
-				Description: "host to the redis destination.",
-			},
-			config.ConfigKeyPort: {
-				Default:     "",
-				Required:    true,
-				Description: "port to the redis destination.",
-			},
-			config.ConfigKeyDatabase: {
-				Default:     "",
-				Required:    true,
-				Description: "database name for the redis destination.",
-			},
+			// config.ConfigKeyHost: {
+			// 	Default:     "",
+			// 	Required:    true,
+			// 	Description: "host to the redis destination.",
+			// },
+			// config.ConfigKeyPort: {
+			// 	Default:     "",
+			// 	Required:    true,
+			// 	Description: "port to the redis destination.",
+			// },
+			// config.ConfigKeyDatabase: {
+			// 	Default:     "",
+			// 	Required:    true,
+			// 	Description: "database name for the redis destination.",
+			// },
 		},
 		SourceParams: map[string]sdk.Parameter{
 			config.ConfigKeyHost: {
@@ -55,10 +55,15 @@ func Specification() sdk.Specification {
 				Required:    true,
 				Description: "port to the redis source",
 			},
-			config.ConfigKeyKey: {
+			config.ConfigKeyConsumer: {
 				Default:     "",
 				Required:    false,
-				Description: "key name for connector to read.",
+				Description: "consumer name for connector to stream.",
+			},
+			config.ConfigKeyConsumerGroup: {
+				Default:     "",
+				Required:    false,
+				Description: "consumergroup name for connector to stream.",
 			},
 			config.ConfigKeyDatabase: {
 				Default:     "",

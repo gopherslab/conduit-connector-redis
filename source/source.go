@@ -21,15 +21,17 @@ import (
 
 	"github.com/conduitio/conduit-connector-redis/config"
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	goredis "github.com/go-redis/redis/v8"
 	redis "github.com/gomodule/redigo/redis"
 )
 
 type Source struct {
 	sdk.UnimplementedSource
 
-	config   config.Config
-	client   redis.Conn
-	iterator Iterator
+	config      config.Config
+	client      redis.Conn
+	redisClient *(goredis.Client)
+	iterator    Iterator
 }
 type Iterator interface {
 	HasNext(ctx context.Context) bool
@@ -53,15 +55,31 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 }
 
 func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
-	address := s.config.Host + ":" + s.config.Port
-	redisClient, err := redis.Dial("tcp", address)
-	if err != nil {
-		return fmt.Errorf("failed to connect redis client:%w", err)
-	}
-	s.client = redisClient
-	s.iterator, err = NewCDCIterator(ctx, s.client, s.config.Channel)
-	if err != nil {
-		return fmt.Errorf("couldn't create a iterator: %w", err)
+	if s.config.Mode == "pubsub" {
+		address := s.config.Host + ":" + s.config.Port
+		redisClient, err := redis.Dial("tcp", address)
+		if err != nil {
+			return fmt.Errorf("failed to connect redis client:%w", err)
+		}
+		s.client = redisClient
+		redisClient2 := goredis.NewClient(&goredis.Options{
+			Addr: fmt.Sprintf("%s:%s", s.config.Host, s.config.Port),
+		})
+		s.redisClient = redisClient2
+		s.iterator, err = NewCDCIterator(ctx, s.client, s.config.Channel)
+		if err != nil {
+			return fmt.Errorf("couldn't create a iterator: %w", err)
+		}
+	} else {
+		redisClient2 := goredis.NewClient(&goredis.Options{
+			Addr: fmt.Sprintf("%s:%s", s.config.Host, s.config.Port),
+		})
+		s.redisClient = redisClient2
+		var err error
+		s.iterator, err = NewCDCIterator2(ctx, s.redisClient, s.config.Consumer, s.config.ConsumerGroup)
+		if err != nil {
+			return fmt.Errorf("couldn't create a iterator: %w", err)
+		}
 	}
 	return nil
 }

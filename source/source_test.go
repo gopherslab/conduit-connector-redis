@@ -88,12 +88,27 @@ func TestNewSource(t *testing.T) {
 func TestOpen(t *testing.T) {
 	var s Source
 	tests := []struct {
-		name string
-		err  error
+		name   string
+		source Source
+		err    error
 	}{
 		{
 			name: "open",
 			err:  errors.New("failed to connect redis client"),
+			source: Source{
+				config: config.Config{
+					Mode: "pubsub",
+				},
+			},
+		},
+		{
+			name: "open",
+			err:  errors.New("failed to connect redis client"),
+			source: Source{
+				config: config.Config{
+					Mode: "stream",
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -188,7 +203,6 @@ func TestTeardown(t *testing.T) {
 			},
 			err: nil,
 		},
-
 		{
 			name: " with iterator",
 			source: Source{
@@ -199,7 +213,7 @@ func TestTeardown(t *testing.T) {
 					return m
 				}(),
 			},
-			err: nil,
+			err: errors.New("mock error"),
 		},
 	}
 	for _, tt := range tests {

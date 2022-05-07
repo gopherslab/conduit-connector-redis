@@ -34,7 +34,7 @@ func TestParse(t *testing.T) {
 			config: map[string]string{
 				ConfigKeyHost:     "localhost",
 				ConfigKeyPort:     "6379",
-				ConfigKeyKey:      "my_key",
+				ConfigKeyConsumer: "my_consumer",
 				ConfigKeyDatabase: "0",
 				ConfigKeyPassword: "12345678",
 				ConfigKeyChannel:  "my_channel",
@@ -42,7 +42,7 @@ func TestParse(t *testing.T) {
 			},
 			want: Config{
 				Host:     "localhost",
-				Key:      "my_key",
+				Consumer: "my_consumer",
 				Port:     "6379",
 				Database: "0",
 				Password: "12345678",
@@ -55,7 +55,7 @@ func TestParse(t *testing.T) {
 			name: "Invalid port",
 			config: map[string]string{
 				ConfigKeyHost:     "localhost",
-				ConfigKeyKey:      "my_key",
+				ConfigKeyConsumer: "my_consumer",
 				ConfigKeyDatabase: "0",
 				ConfigKeyPassword: "12345678",
 				ConfigKeyChannel:  "my_channel",
@@ -69,7 +69,7 @@ func TestParse(t *testing.T) {
 			config: map[string]string{
 
 				ConfigKeyPort:     "6380",
-				ConfigKeyKey:      "my_key",
+				ConfigKeyConsumer: "my_consumer",
 				ConfigKeyDatabase: "0",
 				ConfigKeyPassword: "12345678",
 				ConfigKeyChannel:  "my_channel",
@@ -82,7 +82,7 @@ func TestParse(t *testing.T) {
 			config: map[string]string{
 				ConfigKeyHost:     "localhost",
 				ConfigKeyPort:     "6380",
-				ConfigKeyKey:      "my_key",
+				ConfigKeyConsumer: "my_consumer",
 				ConfigKeyPassword: "12345678",
 				ConfigKeyChannel:  "my_channel",
 				ConfigKeyMode:     "test",

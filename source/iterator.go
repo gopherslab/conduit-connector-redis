@@ -17,10 +17,14 @@ package source
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"sync"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	goredis "github.com/go-redis/redis/v8"
 	redis "github.com/gomodule/redigo/redis"
+	"github.com/rs/xid"
 )
 
 type CDCIterator struct {
@@ -78,6 +82,56 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 
 	wg.Wait()
 	return cdc, <-errs
+}
+
+func NewCDCIterator2(ctx context.Context, client *goredis.Client, consumer string, consumersGroup string) (*CDCIterator, error) {
+	quit := make(chan bool, 1)
+	cdc := &CDCIterator{
+		channel: consumer,
+		quit:    quit,
+	}
+	// consumer := "tickets"
+	// consumersGroup := "tickets-consumer-group"
+	err := client.XGroupCreate(ctx, consumer, consumersGroup, "0").Err()
+	uniqueID := xid.New().String()
+	if err != nil {
+		return cdc, err
+	}
+	go func() {
+		select {
+		case <-cdc.quit:
+			return
+		default:
+			for {
+				entries, err := client.XReadGroup(ctx, &goredis.XReadGroupArgs{
+					Group:    consumersGroup,
+					Consumer: uniqueID,
+					Streams:  []string{consumer, ">"},
+					Count:    2,
+					Block:    0,
+					NoAck:    false,
+				}).Result()
+				if err != nil {
+					return
+				}
+				for i := 0; i < len(entries[0].Messages); i++ {
+					messageID := entries[0].Messages[i].ID
+					fmt.Println(messageID)
+					values := entries[0].Messages[i].Values
+					value, err := json.Marshal(values)
+					if err != nil {
+						return
+					}
+					data := sdk.Record{
+						Payload: sdk.RawData([]byte(value)),
+					}
+					cdc.records = append(cdc.records, data)
+					client.XAck(ctx, consumer, consumersGroup, messageID)
+				}
+			}
+		}
+	}()
+	return cdc, nil
 }
 func (i *CDCIterator) HasNext(ctx context.Context) bool {
 	return len(i.records) > 0
