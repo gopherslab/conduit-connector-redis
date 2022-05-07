@@ -44,14 +44,12 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 		psc:     psc,
 		quit:    quit,
 	}
-	var mu sync.Mutex
 	go func() {
 		select {
 		case <-cdc.quit:
 			return
 		default:
 			for {
-				mu.Lock()
 				switch n := psc.Receive().(type) {
 				case redis.Message:
 					data := sdk.Record{
@@ -69,14 +67,11 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 				case error:
 					return
 				}
-				mu.Unlock()
 			}
 		}
 	}()
 	errs := make(chan error, 1)
 	go func() {
-		mu.Lock()
-		defer mu.Unlock()
 		defer wg.Done()
 		err := psc.Subscribe(channel)
 		if err != nil {
