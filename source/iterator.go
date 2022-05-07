@@ -44,12 +44,14 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 		psc:     psc,
 		quit:    quit,
 	}
+	var mu sync.Mutex
 	go func() {
 		select {
 		case <-cdc.quit:
 			return
 		default:
 			for {
+				mu.Lock()
 				switch n := psc.Receive().(type) {
 				case redis.Message:
 					data := sdk.Record{
@@ -67,11 +69,14 @@ func NewCDCIterator(ctx context.Context, client redis.Conn, channel string) (*CD
 				case error:
 					return
 				}
+				mu.Unlock()
 			}
 		}
 	}()
 	errs := make(chan error, 1)
 	go func() {
+		mu.Lock()
+		defer mu.Unlock()
 		defer wg.Done()
 		err := psc.Subscribe(channel)
 		if err != nil {
@@ -90,8 +95,6 @@ func NewCDCIterator2(ctx context.Context, client *goredis.Client, consumer strin
 		channel: consumer,
 		quit:    quit,
 	}
-	// consumer := "tickets"
-	// consumersGroup := "tickets-consumer-group"
 	client.XGroupCreate(ctx, consumer, consumersGroup, "0")
 	uniqueID := xid.New().String()
 	go func() {
