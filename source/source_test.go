@@ -89,12 +89,27 @@ func TestNewSource(t *testing.T) {
 func TestOpen(t *testing.T) {
 	var s Source
 	tests := []struct {
-		name string
-		err  error
+		name   string
+		err    error
+		source Source
 	}{
 		{
 			name: "open",
 			err:  errors.New("failed to connect redis client"),
+			source: Source{
+				config: config.Config{
+					Mode: "pubsub",
+				},
+			},
+		},
+		{
+			name: "open stram",
+			err:  errors.New("failed to connect redis client"),
+			source: Source{
+				config: config.Config{
+					Mode: "stream",
+				},
+			},
 		},
 	}
 	for _, tt := range tests {

@@ -80,11 +80,11 @@ func NewStreamIterator(ctx context.Context,
 		ticker:          ticker,
 	}
 
-	cdc.tomb.Go(cdc.startIterator(ctx))
+	cdc.tomb.Go(cdc.StartIterator(ctx))
 
 	return cdc, nil
 }
-func (i *StreamIterator) startIterator(ctx context.Context) func() error {
+func (i *StreamIterator) StartIterator(ctx context.Context) func() error {
 	return func() error {
 		defer i.ticker.Stop()
 		for {
