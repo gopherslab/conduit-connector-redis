@@ -86,14 +86,14 @@ func TestNewSource(t *testing.T) {
 }
 
 func TestOpen(t *testing.T) {
-	var s Source
+	// var s Source
 	tests := []struct {
 		name   string
 		source Source
 		err    error
 	}{
 		{
-			name: "open",
+			name: "open pubsub",
 			err:  errors.New("failed to connect redis client"),
 			source: Source{
 				config: config.Config{
@@ -103,7 +103,7 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name: "open",
-			err:  errors.New("failed to connect redis client"),
+			err:  nil,
 			source: Source{
 				config: config.Config{
 					Mode: "stream",
@@ -113,7 +113,7 @@ func TestOpen(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := s.Open(context.Background(), sdk.Position{})
+			err := tt.source.Open(context.Background(), sdk.Position{})
 			if tt.err != nil {
 				assert.NotNil(t, err)
 			} else {
