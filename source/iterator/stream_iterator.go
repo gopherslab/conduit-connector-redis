@@ -43,7 +43,23 @@ type StreamIterator struct {
 	ticker          *time.Ticker
 }
 
-func NewStreamIterator(ctx context.Context, client redis.Conn, key string, pollingInterval time.Duration, position sdk.Position) (*StreamIterator, error) {
+func NewStreamIterator(ctx context.Context,
+	client redis.Conn,
+	key string,
+	pollingInterval time.Duration,
+	position sdk.Position) (*StreamIterator, error) {
+	// validate if key either doesn't exist or is of type other than stream
+	keyType, err := redis.String(client.Do("TYPE", key))
+	if err != nil {
+		return nil, fmt.Errorf("error fetching type of key(%s): %w", key, err)
+	}
+	switch keyType {
+	case "none", "stream":
+	// valid key
+	default:
+		return nil, fmt.Errorf("invalid key type: %s, expected none or stream", keyType)
+	}
+
 	tmbWithCtx, _ := tomb.WithContext(ctx)
 	ticker := time.NewTicker(pollingInterval)
 

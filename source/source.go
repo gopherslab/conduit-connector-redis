@@ -30,7 +30,6 @@ type Source struct {
 	sdk.UnimplementedSource
 
 	config   config.Config
-	client   redis.Conn
 	iterator Iterator
 }
 
@@ -68,16 +67,15 @@ func (s *Source) Open(ctx context.Context, position sdk.Position) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect redis client: %w", err)
 	}
-	s.client = redisClient
 
 	switch s.config.Mode {
 	case config.ModePubSub:
-		s.iterator, err = iterator.NewPubSubIterator(ctx, s.client, s.config.Key)
+		s.iterator, err = iterator.NewPubSubIterator(ctx, redisClient, s.config.Key)
 		if err != nil {
 			return fmt.Errorf("couldn't create a pubsub iterator: %w", err)
 		}
 	case config.ModeStream:
-		s.iterator, err = iterator.NewStreamIterator(ctx, s.client, s.config.Key, s.config.PollingPeriod, position)
+		s.iterator, err = iterator.NewStreamIterator(ctx, redisClient, s.config.Key, s.config.PollingPeriod, position)
 		if err != nil {
 			return fmt.Errorf("couldn't create a stream iterator: %w", err)
 		}
@@ -108,7 +106,6 @@ func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
 }
 
 func (s *Source) Teardown(_ context.Context) error {
-	s.client = nil
 	if s.iterator != nil {
 		err := s.iterator.Stop()
 		if err != nil {

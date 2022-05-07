@@ -25,7 +25,6 @@ import (
 	"github.com/conduitio/conduit-connector-redis/config"
 	"github.com/conduitio/conduit-connector-redis/source/mocks"
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	"github.com/rafaeljusto/redigomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -168,7 +167,6 @@ func TestRead(t *testing.T) {
 	}
 }
 func TestTeardown(t *testing.T) {
-	conn := redigomock.NewConn()
 	tests := []struct {
 		name   string
 		source Source
@@ -177,15 +175,6 @@ func TestTeardown(t *testing.T) {
 		{
 			name: "no client",
 			source: Source{
-				client:   conn,
-				iterator: nil,
-			},
-			err: nil,
-		},
-		{
-			name: "client close",
-			source: Source{
-				client:   conn,
 				iterator: nil,
 			},
 			err: nil,
@@ -194,7 +183,6 @@ func TestTeardown(t *testing.T) {
 		{
 			name: " with iterator",
 			source: Source{
-				client: conn,
 				iterator: func() Iterator {
 					m := &mocks.Iterator{}
 					m.On("Stop", mock.Anything).Return(errors.New("mock error"))

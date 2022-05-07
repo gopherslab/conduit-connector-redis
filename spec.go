@@ -32,17 +32,32 @@ func Specification() sdk.Specification {
 			config.KeyHost: {
 				Default:     "localhost",
 				Required:    false,
-				Description: "host to the redis destination.",
+				Description: "host to the redis source.",
 			},
 			config.KeyPort: {
-				Default:     "port",
+				Default:     "6379",
+				Required:    false,
+				Description: "port to the redis source",
+			},
+			config.KeyRedisKey: {
+				Default:     "",
 				Required:    true,
-				Description: "port to the redis destination.",
+				Description: "key name for connector to read.",
 			},
 			config.KeyDatabase: {
 				Default:     "",
 				Required:    false,
-				Description: "database name for the redis destination.",
+				Description: "database name for the redis source",
+			},
+			config.KeyPassword: {
+				Default:     "",
+				Required:    false,
+				Description: "Password to the redis source.",
+			},
+			config.KeyMode: {
+				Default:     "pubsub",
+				Required:    false,
+				Description: "Sets the connector's operation mode. Available modes: ['pubsub', 'stream']",
 			},
 		},
 		SourceParams: map[string]sdk.Parameter{
