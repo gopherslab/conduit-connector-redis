@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
@@ -34,13 +33,13 @@ import (
 type StreamIterator struct {
 	key             string
 	client          redis.Conn
-	records         []sdk.Record
-	mux             *sync.Mutex
 	tomb            *tomb.Tomb
 	lastID          string
 	recordsPerCall  int
 	pollingInterval time.Duration
 	ticker          *time.Ticker
+	cache           chan []sdk.Record
+	buffer          chan sdk.Record
 }
 
 func NewStreamIterator(ctx context.Context,
@@ -72,80 +71,93 @@ func NewStreamIterator(ctx context.Context,
 	cdc := &StreamIterator{
 		key:             key,
 		client:          client,
-		mux:             &sync.Mutex{},
 		tomb:            tmbWithCtx,
 		recordsPerCall:  1000, // move this to config?
 		lastID:          lastID,
 		pollingInterval: pollingInterval,
 		ticker:          ticker,
+		cache:           make(chan []sdk.Record),
+		buffer:          make(chan sdk.Record, 1),
 	}
 
-	cdc.tomb.Go(cdc.StartIterator(ctx))
+	cdc.tomb.Go(cdc.startIterator(ctx))
+	cdc.tomb.Go(cdc.flush)
 
 	return cdc, nil
 }
-func (i *StreamIterator) StartIterator(ctx context.Context) func() error {
+
+func (i *StreamIterator) HasNext(_ context.Context) bool {
+	return len(i.buffer) > 0 || !i.tomb.Alive() // if tomb is dead we return true so caller will fetch error with Next
+}
+
+func (i *StreamIterator) Next(ctx context.Context) (sdk.Record, error) {
+	select {
+	case rec := <-i.buffer:
+		return rec, nil
+	case <-i.tomb.Dying():
+		return sdk.Record{}, i.tomb.Err()
+	case <-ctx.Done():
+		return sdk.Record{}, ctx.Err()
+	}
+}
+func (i *StreamIterator) Stop() error {
+	i.ticker.Stop()
+	i.tomb.Kill(errors.New("iterator stopped"))
+	if err := i.client.Close(); err != nil {
+		return fmt.Errorf("error closing the redis client: %w", err)
+	}
+	return nil
+}
+
+func (i *StreamIterator) startIterator(ctx context.Context) func() error {
 	return func() error {
-		defer i.ticker.Stop()
+		defer close(i.cache)
 		for {
 			select {
 			case <-i.tomb.Dying():
-				if err := i.client.Close(); err != nil {
-					return fmt.Errorf("error closing the redis client: %w", err)
-				}
-				return fmt.Errorf("tomb error: %w", i.tomb.Err())
+				return i.tomb.Err()
 			case <-i.ticker.C:
 				resp, err := redis.Values(i.client.Do("XREAD", "COUNT", i.recordsPerCall, "STREAMS", i.key, i.lastID))
 				if err != nil {
 					if err == redis.ErrNil {
-						sdk.Logger(ctx).Info().Str("key", i.key).Msg("no new data")
 						continue
 					}
 					return fmt.Errorf("error reading data from stream: %w", err)
 				}
-				records, err := streamToRecords(resp)
+				records, err := toRecords(resp)
 				if err != nil {
 					return fmt.Errorf("error converting stream data to records: %w", err)
 				}
-				if len(records) > 0 {
-					i.mux.Lock()
-					i.records = append(i.records, records...)
+
+				// ensure we don't fetch and keep a lot of records in memory
+				// block till flush reads current array of records
+				select {
+				case i.cache <- records:
 					i.lastID = string(records[len(records)-1].Position)
-					i.mux.Unlock()
+
+				case <-i.tomb.Dying():
+					return i.tomb.Err()
 				}
 			}
 		}
 	}
 }
 
-func (i *StreamIterator) HasNext(_ context.Context) bool {
-	return len(i.records) > 0 || !i.tomb.Alive()
-}
-
-func (i *StreamIterator) Next(ctx context.Context) (sdk.Record, error) {
-	i.mux.Lock()
-	defer i.mux.Unlock()
-
-	if len(i.records) > 0 {
-		rec := i.records[0]
-		i.records = i.records[1:]
-		return rec, nil
-	}
-	select {
-	case <-i.tomb.Dying():
-		return sdk.Record{}, i.tomb.Err()
-	case <-ctx.Done():
-		return sdk.Record{}, ctx.Err()
-	default:
-		return sdk.Record{}, sdk.ErrBackoffRetry
+func (i *StreamIterator) flush() error {
+	defer close(i.buffer)
+	for {
+		select {
+		case <-i.tomb.Dying():
+			return i.tomb.Err()
+		case cache := <-i.cache:
+			for _, record := range cache {
+				i.buffer <- record
+			}
+		}
 	}
 }
-func (i *StreamIterator) Stop() error {
-	i.tomb.Kill(errors.New("iterator stopped"))
-	return nil
-}
 
-func streamToRecords(resp []interface{}) ([]sdk.Record, error) {
+func toRecords(resp []interface{}) ([]sdk.Record, error) {
 	records := make([]sdk.Record, 0)
 	for _, iKey := range resp {
 		var keyInfo = iKey.([]interface{})

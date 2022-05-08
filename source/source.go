@@ -82,7 +82,6 @@ func (s *Source) Open(ctx context.Context, position sdk.Position) error {
 	default:
 		return fmt.Errorf("invalid mode(%v) selected", s.config.Mode)
 	}
-
 	return nil
 }
 
