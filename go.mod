@@ -3,6 +3,7 @@ module github.com/conduitio/conduit-connector-redis
 go 1.18
 
 require (
+	github.com/alicebob/miniredis/v2 v2.21.0
 	github.com/conduitio/conduit-connector-sdk v0.2.0
 	github.com/gomodule/redigo v1.8.8
 	github.com/rafaeljusto/redigomock v2.4.0+incompatible
@@ -11,6 +12,7 @@ require (
 )
 
 require (
+	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/conduitio/conduit-connector-protocol v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.7.0 // indirect
@@ -27,6 +29,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/zerolog v1.26.1 // indirect
 	github.com/stretchr/objx v0.1.0 // indirect
+	github.com/yuin/gopher-lua v0.0.0-20210529063254-f4c35e4016d9 // indirect
 	go.buf.build/library/go-grpc/conduitio/conduit-connector-protocol v1.4.1 // indirect
 	golang.org/x/net v0.0.0-20211108170745-6635138e15ea // indirect
 	golang.org/x/sys v0.0.0-20220405052023-b1e9470b6e64 // indirect

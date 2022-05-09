@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/alicebob/miniredis/v2"
 	"testing"
 
 	"github.com/conduitio/conduit-connector-redis/config"
@@ -95,30 +96,33 @@ func TestOpen(t *testing.T) {
 		source Source
 	}{
 		{
-			name: "open",
-			err:  errors.New("failed to connect redis client"),
-			source: Source{
-				config: config.Config{
-					Mode: config.ModePubSub,
-				},
-			},
-		},
-		{
-			name: "open stram",
-			err:  errors.New("failed to connect redis client"),
+			name: "open stream",
+			err:  nil,
 			source: Source{
 				config: config.Config{
 					Mode: config.ModeStream,
+				},
+			},
+		}, {
+			name: "open errors",
+			err:  errors.New("invalid mode(invalid_mode) encountered"),
+			source: Source{
+				config: config.Config{
+					Mode: "invalid_mode",
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var s Source
-			err := s.Open(context.Background(), sdk.Position{})
+			mr, err := miniredis.Run()
+			assert.NoError(t, err)
+			var s = tt.source
+			s.config.Host = mr.Host()
+			s.config.Port = mr.Port()
+			err = s.Open(context.Background(), sdk.Position{})
 			if tt.err != nil {
-				assert.NotNil(t, err)
+				assert.EqualError(t, err, tt.err.Error())
 			} else {
 				assert.Nil(t, err)
 			}

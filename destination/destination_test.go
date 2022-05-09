@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"testing"
 
+	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/conduitio/conduit-connector-redis/config"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/rafaeljusto/redigomock"
@@ -86,9 +87,23 @@ func TestNewDestination(t *testing.T) {
 }
 
 func TestOpenErr(t *testing.T) {
+	mr, err := miniredis.Run()
+	assert.NoError(t, err)
 	d := new(Destination)
-	d.config.Password = "dummy_password"
-	assert.EqualError(t, d.Open(context.Background()), "failed to connect redis client: dial tcp :0: connect: can't assign requested address")
+	d.config.Host = mr.Host()
+	d.config.Port = mr.Port()
+	d.config.Mode = "invalid_mode"
+	assert.EqualError(t, d.Open(context.Background()), "invalid mode(invalid_mode) encountered")
+}
+
+func TestOpen(t *testing.T) {
+	mr, err := miniredis.Run()
+	assert.NoError(t, err)
+	d := new(Destination)
+	d.config.Host = mr.Host()
+	d.config.Port = mr.Port()
+	d.config.Mode = config.ModeStream
+	assert.NoError(t, d.Open(context.Background()))
 }
 
 func TestValidateKey(t *testing.T) {
