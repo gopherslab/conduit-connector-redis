@@ -11,9 +11,7 @@ Run `make`.
 
 ### Testing
 
-Run `make test` to run all the tests. You must set the environment variables (`AWS_ACCESS_KEY_ID`
-, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`)
-before you run all the tests. If not set, the tests that use these variables will be ignored.
+Run `make test` to run all the tests.
 
 ## Redis Source
 
