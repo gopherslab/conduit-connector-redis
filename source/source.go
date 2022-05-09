@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/conduitio/conduit-connector-redis/config"
+	"github.com/conduitio/conduit-connector-redis/source/iterator"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/gomodule/redigo/redis"
 )
@@ -73,28 +74,21 @@ func (s *Source) Open(ctx context.Context, position sdk.Position) error {
 		return fmt.Errorf("failed to connect redis client: %w", err)
 	}
 
-	return s.validateKey(redisClient)
-}
-
-func (s *Source) validateKey(client redis.Conn) error {
 	switch s.config.Mode {
 	case config.ModePubSub:
-		// no need to verify the type or if the channel exists
-		// as we can create channel with a key even if that key already exists and have some other data type
-	case config.ModeStream:
-		keyType, err := redis.String(client.Do("TYPE", s.config.Key))
+		s.iterator, err = iterator.NewPubSubIterator(ctx, redisClient, s.config.Key)
 		if err != nil {
-			return fmt.Errorf("error fetching type of key(%s): %w", s.config.Key, err)
+			return fmt.Errorf("couldn't create a pubsub iterator: %w", err)
 		}
-		switch keyType {
-		case "none", "stream":
-		// valid key
-		default:
-			return fmt.Errorf("invalid key type: %s, expected none or stream", keyType)
+	case config.ModeStream:
+		s.iterator, err = iterator.NewStreamIterator(ctx, redisClient, s.config.Key, s.config.PollingPeriod, position)
+		if err != nil {
+			return fmt.Errorf("couldn't create a stream iterator: %w", err)
 		}
 	default:
-		return fmt.Errorf("invalid mode(%s) encountered", string(s.config.Mode))
+		return fmt.Errorf("invalid mode(%v) encountered", s.config.Mode)
 	}
+
 	return nil
 }
 
