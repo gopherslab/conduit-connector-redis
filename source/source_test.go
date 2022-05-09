@@ -20,9 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/alicebob/miniredis/v2"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/conduitio/conduit-connector-redis/config"
 	"github.com/conduitio/conduit-connector-redis/source/mocks"
 	sdk "github.com/conduitio/conduit-connector-sdk"
