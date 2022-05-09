@@ -1,12 +1,13 @@
 module github.com/conduitio/conduit-connector-redis
 
-go 1.17
+go 1.18
 
 require (
 	github.com/conduitio/conduit-connector-sdk v0.2.0
 	github.com/gomodule/redigo v1.8.8
 	github.com/rafaeljusto/redigomock v2.4.0+incompatible
 	github.com/stretchr/testify v1.7.1
+	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 )
 
 require (
@@ -33,6 +34,5 @@ require (
 	google.golang.org/genproto v0.0.0-20211104193956-4c6863e31247 // indirect
 	google.golang.org/grpc v1.43.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
-	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )

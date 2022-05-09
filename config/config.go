@@ -18,23 +18,24 @@ package config
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
 const (
-	KeyHost          = "host"
-	KeyPort          = "port"
-	KeyRedisKey      = "key"
-	KeyDatabase      = "database"
-	KeyPassword      = "password"
+	KeyHost          = "redis.host"
+	KeyPort          = "redis.port"
+	KeyRedisKey      = "redis.key"
+	KeyDatabase      = "redis.database"
+	KeyPassword      = "redis.password"
 	KeyMode          = "mode"
-	KeyPollingPeriod = "polling_period"
+	KeyPollingPeriod = "pollingPeriod"
 )
 
 type Config struct {
 	Host          string
 	Port          string
-	Database      string
+	Database      int
 	Key           string
 	Password      string
 	Mode          Mode
@@ -43,8 +44,8 @@ type Config struct {
 type Mode string
 
 const (
-	ModePubSub Mode = "pubsub"
-	ModeStream Mode = "stream"
+	ModePubSub Mode = "MODE_PUBSUB"
+	ModeStream Mode = "MODE_STREAM"
 )
 
 var modeAll = []string{string(ModePubSub), string(ModeStream)}
@@ -54,27 +55,38 @@ func Parse(cfg map[string]string) (Config, error) {
 	if !ok {
 		host = "localhost"
 	}
+
 	port, ok := cfg[KeyPort]
 	if !ok {
 		port = "6379"
 	}
+
 	key, ok := cfg[KeyRedisKey]
 	if !ok {
 		return Config{}, requiredConfigErr(KeyRedisKey)
 	}
+
 	pollingPeriod, ok := cfg[KeyPollingPeriod]
 	if !ok {
 		pollingPeriod = "1s"
 	}
+
 	pollingDuration, err := time.ParseDuration(pollingPeriod)
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid polling duration passed(%v)", pollingPeriod)
 	}
+
+	db, ok := cfg[KeyDatabase]
+	if !ok || db == "" {
+		db = "0"
+	}
+	dbInt, _ := strconv.Atoi(db)
+
 	config := Config{
 		Host:          host,
 		Key:           key,
 		Port:          port,
-		Database:      cfg[KeyDatabase],
+		Database:      dbInt,
 		Password:      cfg[KeyPassword],
 		Mode:          ModePubSub,
 		PollingPeriod: pollingDuration,

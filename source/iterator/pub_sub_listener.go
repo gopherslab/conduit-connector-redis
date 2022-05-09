@@ -36,6 +36,7 @@ type PubSubIterator struct {
 	tomb    *tomb.Tomb
 }
 
+// NewPubSubIterator creates a new instance of redis pubsub iterator and starts listening for new messages on channel
 func NewPubSubIterator(ctx context.Context, client redis.Conn, key string) (*PubSubIterator, error) {
 	psc := &redis.PubSubConn{Conn: client}
 	tmbWithCtx, _ := tomb.WithContext(ctx)
@@ -56,50 +57,13 @@ func NewPubSubIterator(ctx context.Context, client redis.Conn, key string) (*Pub
 
 	return cdc, nil
 }
-func (i *PubSubIterator) startListener(ctx context.Context) func() error {
-	return func() error {
-		for {
-			select {
-			case <-i.tomb.Dying():
-				if err := i.psc.Close(); err != nil {
-					return fmt.Errorf("error closing the pubsub connection: %w", err)
-				}
-				return fmt.Errorf("tomb error: %w", i.tomb.Err())
-			default:
-				switch n := i.psc.Receive().(type) {
-				case redis.Message:
-					// no position set, as redis doesn't persist the message, so message once lost can't be recovered
-					data := sdk.Record{
-						Metadata: map[string]string{
-							"type": "message",
-						},
-						// a random position, to keep conduit server happy
-						Position:  []byte(fmt.Sprintf("%s_%d", n.Channel, time.Now().UnixMilli())),
-						CreatedAt: time.Now(),
-						Key:       sdk.RawData(n.Channel),
-						Payload:   sdk.RawData(n.Data),
-					}
-					i.mux.Lock()
-					i.records = append(i.records, data)
-					i.mux.Unlock()
-				case redis.Subscription:
-					sdk.Logger(i.tomb.Context(ctx)).Info().
-						Str("kind", n.Kind).
-						Int("sub_count", n.Count).
-						Str("channel", n.Channel).
-						Msg("new subscription message received")
-				case error:
-					return n
-				}
-			}
-		}
-	}
-}
 
+// HasNext returns whether there are any more records to be returned
 func (i *PubSubIterator) HasNext(_ context.Context) bool {
 	return len(i.records) > 0 || !i.tomb.Alive()
 }
 
+// Next pops and returns the first message from records queue
 func (i *PubSubIterator) Next(ctx context.Context) (sdk.Record, error) {
 	i.mux.Lock()
 	defer i.mux.Unlock()
@@ -118,7 +82,51 @@ func (i *PubSubIterator) Next(ctx context.Context) (sdk.Record, error) {
 		return sdk.Record{}, sdk.ErrBackoffRetry
 	}
 }
+
+// Stop stops the listener and closes the connection to redis
 func (i *PubSubIterator) Stop() error {
 	i.tomb.Kill(errors.New("listener stopped"))
 	return nil
+}
+
+// startListener is the go routine function listening for new messages on provided channel in an infinite loop
+func (i *PubSubIterator) startListener(ctx context.Context) func() error {
+	return func() error {
+		for {
+			select {
+			case <-i.tomb.Dying():
+				if err := i.psc.Close(); err != nil {
+					return fmt.Errorf("error closing the pubsub connection: %w", err)
+				}
+				return fmt.Errorf("tomb error: %w", i.tomb.Err())
+			default:
+				switch n := i.psc.Receive().(type) {
+				case redis.Message:
+					key := fmt.Sprintf("%s_%d", n.Channel, time.Now().UnixNano())
+					// no position set, as redis doesn't persist the message, so message once lost can't be recovered
+					data := sdk.Record{
+						Metadata: map[string]string{
+							"type": "message",
+						},
+						// a random position, to keep conduit server happy
+						Position:  []byte(key),
+						CreatedAt: time.Now(),
+						Key:       sdk.RawData(key),
+						Payload:   sdk.RawData(n.Data),
+					}
+					i.mux.Lock()
+					i.records = append(i.records, data)
+					i.mux.Unlock()
+				case redis.Subscription:
+					sdk.Logger(i.tomb.Context(ctx)).Info().
+						Str("kind", n.Kind).
+						Int("sub_count", n.Count).
+						Str("channel", n.Channel).
+						Msg("new subscription message received")
+				case error:
+					return n
+				}
+			}
+		}
+	}
 }

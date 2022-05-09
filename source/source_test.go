@@ -25,6 +25,7 @@ import (
 	"github.com/conduitio/conduit-connector-redis/config"
 	"github.com/conduitio/conduit-connector-redis/source/mocks"
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	"github.com/rafaeljusto/redigomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -81,13 +82,13 @@ func TestConfigure(t *testing.T) {
 		})
 	}
 }
+
 func TestNewSource(t *testing.T) {
 	svc := NewSource()
 	assert.NotNil(t, svc)
 }
 
 func TestOpen(t *testing.T) {
-	var s Source
 	tests := []struct {
 		name   string
 		err    error
@@ -98,7 +99,7 @@ func TestOpen(t *testing.T) {
 			err:  errors.New("failed to connect redis client"),
 			source: Source{
 				config: config.Config{
-					Mode: "pubsub",
+					Mode: config.ModePubSub,
 				},
 			},
 		},
@@ -107,13 +108,14 @@ func TestOpen(t *testing.T) {
 			err:  errors.New("failed to connect redis client"),
 			source: Source{
 				config: config.Config{
-					Mode: "stream",
+					Mode: config.ModeStream,
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var s Source
 			err := s.Open(context.Background(), sdk.Position{})
 			if tt.err != nil {
 				assert.NotNil(t, err)
@@ -123,6 +125,7 @@ func TestOpen(t *testing.T) {
 		})
 	}
 }
+
 func TestRead(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -181,6 +184,7 @@ func TestRead(t *testing.T) {
 		})
 	}
 }
+
 func TestTeardown(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -218,6 +222,7 @@ func TestTeardown(t *testing.T) {
 		})
 	}
 }
+
 func TestAck(t *testing.T) {
 	var s Source
 	test := struct {
@@ -235,4 +240,61 @@ func TestAck(t *testing.T) {
 			assert.Nil(t, err)
 		}
 	})
+}
+
+func TestValidateKey(t *testing.T) {
+	tests := []struct {
+		name string
+		mode config.Mode
+		fn   func(conn *redigomock.Conn)
+		err  error
+	}{
+		{
+			name: "validate pubsub",
+			mode: config.ModePubSub,
+			fn:   func(conn *redigomock.Conn) {},
+			err:  nil,
+		}, {
+			name: "validate stream, type none",
+			mode: config.ModeStream,
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("TYPE", "dummy_key").Expect("none")
+			},
+			err: nil,
+		}, {
+			name: "validate stream, type stream",
+			mode: config.ModeStream,
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("TYPE", "dummy_key").Expect("stream")
+			},
+			err: nil,
+		}, {
+			name: "validate stream fails",
+			mode: config.ModeStream,
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("TYPE", "dummy_key").Expect("string")
+			},
+			err: fmt.Errorf("invalid key type: string, expected none or stream"),
+		}, {
+			name: "invalid mode",
+			mode: config.Mode("dummy_mode"),
+			fn:   func(conn *redigomock.Conn) {},
+			err:  fmt.Errorf("invalid mode(dummy_mode) encountered"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := redigomock.NewConn()
+			tt.fn(c)
+			d := new(Source)
+			d.config.Mode = tt.mode
+			d.config.Key = "dummy_key"
+			err := d.validateKey(c)
+			if tt.err != nil {
+				assert.EqualError(t, err, tt.err.Error())
+			} else {
+				assert.Nil(t, err)
+			}
+		})
+	}
 }

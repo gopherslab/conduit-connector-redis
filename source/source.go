@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/conduitio/conduit-connector-redis/config"
-	"github.com/conduitio/conduit-connector-redis/source/iterator"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/gomodule/redigo/redis"
 )
@@ -41,10 +40,12 @@ type Iterator interface {
 
 //go:generate mockery --name=Iterator --outpkg mocks
 
+// NewSource returns an instance of sdk.Source
 func NewSource() sdk.Source {
 	return &Source{}
 }
 
+// Configure validates the passed config and prepares the source connector
 func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 	sdk.Logger(ctx).Info().Msg("Configuring a Source Connector...")
 	conf, err := config.Parse(cfg)
@@ -55,6 +56,7 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 	return nil
 }
 
+// Open prepare the plugin to start reading records from the given position
 func (s *Source) Open(ctx context.Context, position sdk.Position) error {
 	address := s.config.Host + ":" + s.config.Port
 	dialOptions := make([]redis.DialOption, 0)
@@ -62,29 +64,41 @@ func (s *Source) Open(ctx context.Context, position sdk.Position) error {
 	if s.config.Password != "" {
 		dialOptions = append(dialOptions, redis.DialPassword(s.config.Password))
 	}
+	if s.config.Database >= 0 {
+		dialOptions = append(dialOptions, redis.DialDatabase(s.config.Database))
+	}
 
 	redisClient, err := redis.DialContext(ctx, "tcp", address, dialOptions...)
 	if err != nil {
 		return fmt.Errorf("failed to connect redis client: %w", err)
 	}
 
+	return s.validateKey(redisClient)
+}
+
+func (s *Source) validateKey(client redis.Conn) error {
 	switch s.config.Mode {
 	case config.ModePubSub:
-		s.iterator, err = iterator.NewPubSubIterator(ctx, redisClient, s.config.Key)
-		if err != nil {
-			return fmt.Errorf("couldn't create a pubsub iterator: %w", err)
-		}
+		// no need to verify the type or if the channel exists
+		// as we can create channel with a key even if that key already exists and have some other data type
 	case config.ModeStream:
-		s.iterator, err = iterator.NewStreamIterator(ctx, redisClient, s.config.Key, s.config.PollingPeriod, position)
+		keyType, err := redis.String(client.Do("TYPE", s.config.Key))
 		if err != nil {
-			return fmt.Errorf("couldn't create a stream iterator: %w", err)
+			return fmt.Errorf("error fetching type of key(%s): %w", s.config.Key, err)
+		}
+		switch keyType {
+		case "none", "stream":
+		// valid key
+		default:
+			return fmt.Errorf("invalid key type: %s, expected none or stream", keyType)
 		}
 	default:
-		return fmt.Errorf("invalid mode(%v) selected", s.config.Mode)
+		return fmt.Errorf("invalid mode(%s) encountered", string(s.config.Mode))
 	}
 	return nil
 }
 
+// Read gets the next object
 func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
 	if !s.iterator.HasNext(ctx) {
 		return sdk.Record{}, sdk.ErrBackoffRetry
@@ -96,6 +110,7 @@ func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
 	return rec, nil
 }
 
+// Ack is called by the conduit server after the record has been successfully processed by all destination connectors
 func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
 	sdk.Logger(ctx).Info().
 		Str("position", string(position)).
@@ -104,6 +119,8 @@ func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
 	return nil
 }
 
+// Teardown is called by the conduit server to stop the source connector
+// all the cleanup should be done in this function
 func (s *Source) Teardown(_ context.Context) error {
 	if s.iterator != nil {
 		err := s.iterator.Stop()

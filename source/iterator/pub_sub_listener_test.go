@@ -28,23 +28,24 @@ import (
 )
 
 func TestHasNext(t *testing.T) {
-	var cdc PubSubIterator
-	data := []byte("ABCD")
-	data2 := sdk.Record{
-		Payload: sdk.RawData(data),
-	}
-	cdc.records = append(cdc.records, data2)
 	tests := []struct {
 		name     string
+		records  []sdk.Record
 		response bool
 	}{
 		{
 			name:     "Has next",
+			records:  []sdk.Record{{}},
 			response: true,
+		}, {
+			name:     "no next value",
+			records:  []sdk.Record{},
+			response: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var cdc = PubSubIterator{records: tt.records, tomb: &tomb.Tomb{}}
 			res := cdc.HasNext(context.Background())
 			assert.Equal(t, res, tt.response, tt.name)
 		})
@@ -54,64 +55,43 @@ func TestStop(t *testing.T) {
 	cdc := PubSubIterator{
 		tomb: &tomb.Tomb{},
 	}
-	test := struct {
-		name string
-		err  error
-	}{
-		name: "stop",
-		err:  nil,
-	}
-	t.Run(test.name, func(t *testing.T) {
-		err := cdc.Stop()
-		if test.err != nil {
-			assert.NotNil(t, test.err, err)
-		} else {
-			assert.Nil(t, err)
-		}
-	})
+	err := cdc.Stop()
+	assert.Nil(t, err)
 }
+
 func TestNext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	tmbWithCtx, ctx := tomb.WithContext(ctx)
 	var cdc PubSubIterator
-	data := []byte("ABCD")
-	data2 := sdk.Record{
+	cdc.tomb = tmbWithCtx
+	dummyRec := sdk.Record{
 		Position: nil,
 		Metadata: nil,
 		Key:      nil,
-		Payload:  sdk.RawData(data),
+		Payload:  sdk.RawData("dummy_payload"),
 	}
 	cdc.mux = &sync.Mutex{}
-	cdc.records = append(cdc.records, data2)
-	cdc.records = append(cdc.records, data2)
-	tests := []struct {
-		name     string
-		response sdk.Record
-		err      error
-	}{
-		{
-			name:     "test",
-			response: data2,
-			err:      nil,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			res, err := cdc.Next(context.Background())
-			if tt.err != nil {
-				assert.NotNil(t, err)
-			} else {
-				assert.NotNil(t, res)
-				assert.Equal(t, res, tt.response)
-			}
-		})
-	}
+	cdc.records = append(cdc.records, dummyRec)
+	res, err := cdc.Next(ctx)
+	assert.Nil(t, err)
+	assert.Equal(t, res, dummyRec)
+	res, err = cdc.Next(ctx)
+	assert.Equal(t, sdk.Record{}, res)
+	assert.EqualError(t, err, sdk.ErrBackoffRetry.Error())
+	cancel()
+	res, err = cdc.Next(ctx)
+	assert.Equal(t, sdk.Record{}, res)
+	assert.EqualError(t, err, "context canceled")
 }
+
 func TestNewCDCIterator(t *testing.T) {
 	redisChannel := "subchannel"
 	conn := redigomock.NewConn()
 	response := PubSubIterator{
 		key:     redisChannel,
 		psc:     &redis.PubSubConn{Conn: conn},
-		records: []sdk.Record(nil),
+		records: []sdk.Record{},
+		mux:     &sync.Mutex{},
 	}
 
 	conn.Command("SUBSCRIBE", redisChannel).Expect([]interface{}{
@@ -132,25 +112,9 @@ func TestNewCDCIterator(t *testing.T) {
 			message,
 		})
 	}
-	tests := []struct {
-		name     string
-		response *PubSubIterator
-		err      error
-	}{
-		{
-			name:     "Success",
-			response: &response,
-			err:      nil,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			res, err := NewPubSubIterator(context.Background(), conn, redisChannel)
-			if tt.err != nil {
-				assert.NotNil(t, err)
-			} else {
-				assert.NotNil(t, res)
-			}
-		})
-	}
+	res, err := NewPubSubIterator(context.Background(), conn, redisChannel)
+	assert.Nil(t, err)
+	assert.NotNil(t, res)
+	assert.Equal(t, response.key, res.key)
+	assert.Equal(t, response.psc, res.psc)
 }

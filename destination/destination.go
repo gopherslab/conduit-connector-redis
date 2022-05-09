@@ -33,10 +33,12 @@ type Destination struct {
 	client redis.Conn
 }
 
+// NewDestination returns an instance of sdk.Destination
 func NewDestination() sdk.Destination {
 	return &Destination{}
 }
 
+// Configure sets up the destination by validating and parsing the config
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
 	sdk.Logger(ctx).Info().Msg("Configuring a Destination Connector...")
 	conf, err := config.Parse(cfg)
@@ -47,6 +49,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 	return nil
 }
 
+// Open creates a connection to redis and validates the type to key using Type <key> command
 func (d *Destination) Open(ctx context.Context) error {
 	address := d.config.Host + ":" + d.config.Port
 	dialOptions := make([]redis.DialOption, 0)
@@ -62,12 +65,16 @@ func (d *Destination) Open(ctx context.Context) error {
 
 	d.client = redisClient
 
+	return d.validateKey(redisClient)
+}
+
+func (d *Destination) validateKey(client redis.Conn) error {
 	switch d.config.Mode {
 	case config.ModePubSub:
 		// no need to verify the type or if the channel exists
 		// as we can create channel with a key even if that key already exists and have some other data type
 	case config.ModeStream:
-		keyType, err := redis.String(redisClient.Do("TYPE", d.config.Key))
+		keyType, err := redis.String(client.Do("TYPE", d.config.Key))
 		if err != nil {
 			return fmt.Errorf("error fetching type of key(%s): %w", d.config.Key, err)
 		}
@@ -80,10 +87,11 @@ func (d *Destination) Open(ctx context.Context) error {
 	default:
 		return fmt.Errorf("invalid mode(%s) encountered", string(d.config.Mode))
 	}
-
 	return nil
 }
 
+// Write receives the record to be written and based on the mode either publishes to PUB/SUB channel
+// or add as key-value pair to stream using XADD, the id of the newly added key is generated automatically
 func (d *Destination) Write(ctx context.Context, rec sdk.Record) error {
 	key := d.config.Key
 
@@ -105,7 +113,6 @@ func (d *Destination) Write(ctx context.Context, rec sdk.Record) error {
 		}
 
 		args = append(args, keyValArgs...)
-		fmt.Println(keyValArgs)
 
 		_, err = d.client.Do("XADD", args...)
 		if err != nil {
@@ -117,15 +124,17 @@ func (d *Destination) Write(ctx context.Context, rec sdk.Record) error {
 	}
 }
 
+// Teardown is called by conduit server to stop the destination connector
+// the graceful shutdown is performed in this function
 func (d *Destination) Teardown(_ context.Context) error {
 	return d.client.Close()
 }
 
+// payloadToStreamArgs converts the payload from the record to args to be sent in redis command
 func payloadToStreamArgs(payload sdk.Data) ([]interface{}, error) {
 	recMap := make(map[string]string)
 
 	if err := json.Unmarshal(payload.Bytes(), &recMap); err != nil {
-		fmt.Println(err)
 		return nil, fmt.Errorf("invalid json received in payload: %w", err)
 	}
 

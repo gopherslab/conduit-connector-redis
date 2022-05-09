@@ -18,8 +18,6 @@ package destination
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"testing"
 
@@ -81,27 +79,68 @@ func TestConfigure(t *testing.T) {
 		})
 	}
 }
+
 func TestNewDestination(t *testing.T) {
 	svc := NewDestination()
 	assert.NotNil(t, svc)
 }
 
-func TestOpen(t *testing.T) {
-	var d Destination
+func TestOpenErr(t *testing.T) {
+	d := new(Destination)
+	d.config.Password = "dummy_password"
+	assert.EqualError(t, d.Open(context.Background()), "failed to connect redis client: dial tcp :0: connect: can't assign requested address")
+}
+
+func TestValidateKey(t *testing.T) {
 	tests := []struct {
 		name string
+		mode config.Mode
+		fn   func(conn *redigomock.Conn)
 		err  error
 	}{
 		{
-			name: "open",
-			err:  errors.New("failed to connect redis client"),
+			name: "validate pubsub",
+			mode: config.ModePubSub,
+			fn:   func(conn *redigomock.Conn) {},
+			err:  nil,
+		}, {
+			name: "validate stream, type none",
+			mode: config.ModeStream,
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("TYPE", "dummy_key").Expect("none")
+			},
+			err: nil,
+		}, {
+			name: "validate stream, type stream",
+			mode: config.ModeStream,
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("TYPE", "dummy_key").Expect("stream")
+			},
+			err: nil,
+		}, {
+			name: "validate stream fails",
+			mode: config.ModeStream,
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("TYPE", "dummy_key").Expect("string")
+			},
+			err: fmt.Errorf("invalid key type: string, expected none or stream"),
+		}, {
+			name: "invalid mode",
+			mode: config.Mode("dummy_mode"),
+			fn:   func(conn *redigomock.Conn) {},
+			err:  fmt.Errorf("invalid mode(dummy_mode) encountered"),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := d.Open(context.Background())
+			c := redigomock.NewConn()
+			tt.fn(c)
+			d := new(Destination)
+			d.config.Mode = tt.mode
+			d.config.Key = "dummy_key"
+			err := d.validateKey(c)
 			if tt.err != nil {
-				assert.NotNil(t, err)
+				assert.EqualError(t, err, tt.err.Error())
 			} else {
 				assert.Nil(t, err)
 			}
@@ -110,76 +149,83 @@ func TestOpen(t *testing.T) {
 }
 
 func TestWrite(t *testing.T) {
-	conn := redigomock.NewConn()
-	jsonString := `{"some":"json"}`
-
-	invalidData := []byte(jsonString)
-	data := map[string]string{
-		"key": jsonString,
-	}
-	validData, _ := json.Marshal(data)
-
+	validJSON := []byte(`{"some":"json"}`)
+	invalidJSON := []byte(`1,2,3,4`)
+	key := "dummy_key"
 	tests := []struct {
 		name        string
 		data        sdk.Record
+		fn          func(conn *redigomock.Conn)
 		err         error
 		destination Destination
 	}{
 		{
 			name: "invalid channel",
 			data: sdk.Record{
-				Payload: sdk.RawData(validData),
+				Payload: sdk.RawData(validJSON),
+			},
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("PUBLISH", string(validJSON)).ExpectError(fmt.Errorf("invalid channel"))
 			},
 			err: fmt.Errorf("error publishing message to channel()"),
 			destination: Destination{
 				config: config.Config{
-					Mode: "pubsub",
+					Mode: config.ModePubSub,
+					Key:  key,
 				},
-				client: conn,
 			},
 		},
 		{
-			name: " stream data",
+			name: "stream success",
 			data: sdk.Record{
-				Payload: sdk.RawData(validData),
+				Payload: sdk.RawData(validJSON),
 			},
-			err: fmt.Errorf("invalid payload"),
+			err: nil,
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("XADD", key, "*", "some", "json").Expect("dummy_id")
+			},
 			destination: Destination{
 				config: config.Config{
-					Mode: "stream",
+					Mode: config.ModeStream,
+					Key:  key,
 				},
-				client: conn,
 			},
-		},
-		{
-			name: "invalid stream",
+		}, {
+			name: "stream failed",
 			data: sdk.Record{
-				Payload: sdk.RawData(invalidData),
+				Payload: sdk.RawData(validJSON),
 			},
-			err: fmt.Errorf("invalid payload: invalid json received in payload: invalid character 'A' looking for beginning of value"),
+			err: fmt.Errorf("error streaming message to key(dummy_key):dummy_error"),
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("XADD", key, "*", "some", "json").ExpectError(fmt.Errorf("dummy_error"))
+			},
 			destination: Destination{
 				config: config.Config{
-					Mode: "stream",
+					Mode: config.ModeStream,
+					Key:  key,
 				},
-				client: conn,
 			},
 		},
 		{
 			name: "invalid mode",
 			data: sdk.Record{
-				Payload: sdk.RawData(validData),
+				Payload: sdk.RawData(invalidJSON),
 			},
 			err: fmt.Errorf("invalid mode(test) encountered"),
 			destination: Destination{
 				config: config.Config{
 					Mode: "test",
 				},
-				client: conn,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			conn := redigomock.NewConn()
+			if tt.fn != nil {
+				tt.fn(conn)
+			}
+			tt.destination.client = conn
 			err := tt.destination.Write(context.Background(), tt.data)
 			if tt.err != nil {
 				assert.NotNil(t, err)
