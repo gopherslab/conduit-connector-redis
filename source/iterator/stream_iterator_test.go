@@ -23,7 +23,6 @@ import (
 	"time"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	"github.com/gomodule/redigo/redis"
 	"github.com/rafaeljusto/redigomock"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/tomb.v2"
@@ -33,23 +32,27 @@ func TestNewStreamIterator(t *testing.T) {
 	tests := []struct {
 		name           string
 		pos            sdk.Position
-		client         redis.Conn
+		fn             func(conn *redigomock.Conn)
 		pollingPeriod  time.Duration
 		err            error
 		expectedLastID string
 	}{
 		{
-			name:           "NewCDCIterator with lastModifiedTime=0",
-			pos:            []byte(""),
-			client:         nil,
-			pollingPeriod:  time.Second,
+			name:          "NewCDCIterator with lastModifiedTime=0",
+			pos:           []byte(""),
+			pollingPeriod: time.Second,
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("TYPE", "dummy_key").Expect("none")
+			},
 			err:            nil,
 			expectedLastID: "0-0",
 		}, {
-			name:           "NewCDCIterator with lastModifiedTime=2022-01-02T15:04:05Z",
-			pos:            []byte("dummy_id"),
-			client:         nil,
-			pollingPeriod:  time.Second,
+			name:          "NewCDCIterator with lastModifiedTime=2022-01-02T15:04:05Z",
+			pos:           []byte("dummy_id"),
+			pollingPeriod: time.Second,
+			fn: func(conn *redigomock.Conn) {
+				conn.Command("TYPE", "dummy_key").Expect("none")
+			},
 			err:            nil,
 			expectedLastID: "dummy_id",
 		},
@@ -57,7 +60,9 @@ func TestNewStreamIterator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			key := "dummy_key"
-			res, err := NewStreamIterator(context.Background(), tt.client, key, tt.pollingPeriod, tt.pos)
+			client := redigomock.NewConn()
+			tt.fn(client)
+			res, err := NewStreamIterator(context.Background(), client, key, tt.pollingPeriod, tt.pos)
 			if tt.err != nil {
 				assert.NotNil(t, err)
 			} else {
@@ -67,7 +72,7 @@ func TestNewStreamIterator(t *testing.T) {
 				assert.NotNil(t, res.tomb)
 				assert.NotNil(t, res.ticker)
 				assert.Equal(t, tt.pollingPeriod, res.pollingInterval)
-				assert.Equal(t, tt.client, res.client)
+				assert.Equal(t, client, res.client)
 				assert.Equal(t, tt.expectedLastID, res.lastID)
 				assert.True(t, res.tomb.Alive())
 				res.tomb.Kill(fmt.Errorf("stop"))

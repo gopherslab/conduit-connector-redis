@@ -49,6 +49,17 @@ func NewStreamIterator(ctx context.Context,
 	key string,
 	pollingInterval time.Duration,
 	position sdk.Position) (*StreamIterator, error) {
+	keyType, err := redis.String(client.Do("TYPE", key))
+	if err != nil {
+		return nil, fmt.Errorf("error fetching type of key(%s): %w", key, err)
+	}
+	switch keyType {
+	case "none", "stream":
+	// valid key
+	default:
+		return nil, fmt.Errorf("invalid key type: %s, expected none or stream", keyType)
+	}
+
 	tmbWithCtx, _ := tomb.WithContext(ctx)
 	ticker := time.NewTicker(pollingInterval)
 
