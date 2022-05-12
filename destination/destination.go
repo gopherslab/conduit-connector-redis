@@ -26,6 +26,11 @@ import (
 	"github.com/gomodule/redigo/redis"
 )
 
+const (
+	keyTypeNone   = "none"
+	keyTypeStream = "stream"
+)
+
 type Destination struct {
 	sdk.UnimplementedDestination
 
@@ -40,7 +45,7 @@ func NewDestination() sdk.Destination {
 
 // Configure sets up the destination by validating and parsing the config
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
-	sdk.Logger(ctx).Info().Msg("Configuring a Destination Connector...")
+	sdk.Logger(ctx).Trace().Msg("Configuring a Destination Connector...")
 	conf, err := config.Parse(cfg)
 	if err != nil {
 		return fmt.Errorf("error parsing config: %w", err)
@@ -57,6 +62,7 @@ func (d *Destination) Open(ctx context.Context) error {
 	if d.config.Password != "" {
 		dialOptions = append(dialOptions, redis.DialPassword(d.config.Password))
 	}
+	dialOptions = append(dialOptions, redis.DialDatabase(d.config.Database))
 
 	redisClient, err := redis.DialContext(ctx, "tcp", address, dialOptions...)
 	if err != nil {
@@ -71,17 +77,15 @@ func (d *Destination) Open(ctx context.Context) error {
 func (d *Destination) validateKey(client redis.Conn) error {
 	switch d.config.Mode {
 	case config.ModePubSub:
-		// no need to verify the type or if the channel exists
-		// as we can create channel with a key even if that key already exists and have some other data type
+	// no need to verify the type or if the channel exists
+	// as we can create channel with a key even if that key already exists and have some other data type
+
 	case config.ModeStream:
 		keyType, err := redis.String(client.Do("TYPE", d.config.Key))
 		if err != nil {
 			return fmt.Errorf("error fetching type of key(%s): %w", d.config.Key, err)
 		}
-		switch keyType {
-		case "none", "stream":
-		// valid key
-		default:
+		if keyType != keyTypeNone && keyType != keyTypeStream {
 			return fmt.Errorf("invalid key type: %s, expected none or stream", keyType)
 		}
 	default:
@@ -102,6 +106,7 @@ func (d *Destination) Write(ctx context.Context, rec sdk.Record) error {
 			return fmt.Errorf("error publishing message to channel(%s)", key)
 		}
 		return nil
+
 	case config.ModeStream:
 
 		keyValArgs, err := payloadToStreamArgs(rec.Payload)
@@ -127,7 +132,10 @@ func (d *Destination) Write(ctx context.Context, rec sdk.Record) error {
 // Teardown is called by conduit server to stop the destination connector
 // the graceful shutdown is performed in this function
 func (d *Destination) Teardown(_ context.Context) error {
-	return d.client.Close()
+	if d.client != nil {
+		return d.client.Close()
+	}
+	return nil
 }
 
 // payloadToStreamArgs converts the payload from the record to args to be sent in redis command

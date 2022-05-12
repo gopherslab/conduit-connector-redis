@@ -125,6 +125,8 @@ func (i *PubSubIterator) startListener(ctx context.Context) func() error {
 						Msg("new subscription message received")
 				case error:
 					return n
+				default:
+					// pong or other message type, skip
 				}
 			}
 		}

@@ -30,6 +30,11 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
+const (
+	keyTypeNone   = "none"
+	keyTypeStream = "stream"
+)
+
 type StreamIterator struct {
 	key             string
 	client          redis.Conn
@@ -48,15 +53,13 @@ func NewStreamIterator(ctx context.Context,
 	client redis.Conn,
 	key string,
 	pollingInterval time.Duration,
-	position sdk.Position) (*StreamIterator, error) {
+	position sdk.Position,
+) (*StreamIterator, error) {
 	keyType, err := redis.String(client.Do("TYPE", key))
 	if err != nil {
 		return nil, fmt.Errorf("error fetching type of key(%s): %w", key, err)
 	}
-	switch keyType {
-	case "none", "stream":
-	// valid key
-	default:
+	if keyType != keyTypeNone && keyType != keyTypeStream {
 		return nil, fmt.Errorf("invalid key type: %s, expected none or stream", keyType)
 	}
 
@@ -77,8 +80,10 @@ func NewStreamIterator(ctx context.Context,
 		lastID:          lastID,
 		pollingInterval: pollingInterval,
 		ticker:          ticker,
-		caches:          make(chan []sdk.Record),
-		buffer:          make(chan sdk.Record, 1),
+		// keeping the buffer length as 1, so that we are not blocked by one cache
+		// we have other batch of records ready once first batch is read
+		caches: make(chan []sdk.Record, 1),
+		buffer: make(chan sdk.Record, 1),
 	}
 
 	cdc.tomb.Go(cdc.startIterator(ctx))
@@ -161,7 +166,12 @@ func (i *StreamIterator) flush() error {
 			return i.tomb.Err()
 		case cache := <-i.caches:
 			for _, record := range cache {
-				i.buffer <- record
+				select {
+				case <-i.tomb.Dying():
+					return i.tomb.Err()
+				default:
+					i.buffer <- record
+				}
 			}
 		}
 	}
@@ -171,36 +181,14 @@ func (i *StreamIterator) flush() error {
 func toRecords(resp []interface{}) ([]sdk.Record, error) {
 	records := make([]sdk.Record, 0)
 	for _, iKey := range resp {
-		keyInfo, ok := iKey.([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("iKey: invalid data type encountered, expected:%T, got:%T", keyInfo, iKey)
-		}
-		key, ok := keyInfo[0].([]byte)
-		if !ok {
-			return nil, fmt.Errorf("keyInfo[0]: invalid data type encountered, expected:%T, got:%T", key, keyInfo[0])
-		}
-		idList, ok := keyInfo[1].([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("keyInfo[0]:invalid data type encountered, expected:%T, got:%T", idList, keyInfo[1])
+		key, idList, err := parseKeyData(iKey)
+		if err != nil {
+			return nil, err
 		}
 		for _, iID := range idList {
-			idInfo, ok := iID.([]interface{})
-			if !ok {
-				return nil, fmt.Errorf("iID:invalid data type encountered, expected:%T, got:%T", idInfo, iID)
-			}
-			position, ok := idInfo[0].([]byte)
-			if !ok {
-				return records, fmt.Errorf("idInfo[0]:error invalid id type received %T expected: %T", idInfo[0], position)
-			}
-			posParts := strings.Split(string(position), "-")
-			ts, err := strconv.ParseInt(posParts[0], 10, 64)
-			if err != nil || ts == 0 {
-				// ignore the error, in case of custom id, we will use time.Now()
-				ts = time.Now().UnixMilli()
-			}
-			fieldList, ok := idInfo[1].([]interface{})
-			if !ok {
-				return nil, fmt.Errorf("idInfo[1]:invalid data type encountered, expected:%T, got:%T", idInfo[1], fieldList)
+			position, fieldList, err := parsePositionData(iID)
+			if err != nil {
+				return nil, err
 			}
 			rMap, err := arrInterfaceToMap(fieldList)
 			if err != nil {
@@ -211,15 +199,59 @@ func toRecords(resp []interface{}) ([]sdk.Record, error) {
 				return records, fmt.Errorf("error marshaling the map: %w", err)
 			}
 			records = append(records, sdk.Record{
-				Position:  position,
-				Metadata:  nil,
-				CreatedAt: time.UnixMilli(ts),
+				Position: position,
+				Metadata: map[string]string{
+					"key": string(key),
+				},
+				CreatedAt: getTimeFromPosition(string(position)),
 				Key:       sdk.RawData(position),
 				Payload:   sdk.RawData(payload),
 			})
 		}
 	}
 	return records, nil
+}
+
+func parseKeyData(d interface{}) ([]byte, []interface{}, error) {
+	keyInfo, ok := d.([]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("iKey: invalid data type encountered, expected:%T, got:%T", keyInfo, d)
+	}
+	key, ok := keyInfo[0].([]byte)
+	if !ok {
+		return nil, nil, fmt.Errorf("keyInfo[0]: invalid data type encountered, expected:%T, got:%T", key, keyInfo[0])
+	}
+	idList, ok := keyInfo[1].([]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("keyInfo[0]:invalid data type encountered, expected:%T, got:%T", idList, keyInfo[1])
+	}
+	return key, idList, nil
+}
+
+func parsePositionData(i interface{}) ([]byte, []interface{}, error) {
+	idInfo, ok := i.([]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("iID:invalid data type encountered, expected:%T, got:%T", idInfo, i)
+	}
+	position, ok := idInfo[0].([]byte)
+	if !ok {
+		return nil, nil, fmt.Errorf("idInfo[0]:error invalid id type received %T expected: %T", idInfo[0], position)
+	}
+	fieldList, ok := idInfo[1].([]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("idInfo[1]:invalid data type encountered, expected:%T, got:%T", idInfo[1], fieldList)
+	}
+	return position, fieldList, nil
+}
+
+func getTimeFromPosition(pos string) time.Time {
+	posParts := strings.Split(pos, "-")
+	ts, err := strconv.ParseInt(posParts[0], 10, 64)
+	if err != nil || ts == 0 {
+		// ignore the error, in case of custom id, we will use time.Now()
+		ts = time.Now().UnixMilli()
+	}
+	return time.UnixMilli(ts)
 }
 
 // arrInterfaceToMap converts the stream key-val response to map[string]string

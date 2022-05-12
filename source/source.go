@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate mockery --name=Iterator --outpkg mocks
+
 package source
 
 import (
@@ -39,8 +41,6 @@ type Iterator interface {
 	Stop() error
 }
 
-//go:generate mockery --name=Iterator --outpkg mocks
-
 // NewSource returns an instance of sdk.Source
 func NewSource() sdk.Source {
 	return &Source{}
@@ -48,7 +48,7 @@ func NewSource() sdk.Source {
 
 // Configure validates the passed config and prepares the source connector
 func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
-	sdk.Logger(ctx).Info().Msg("Configuring a Source Connector...")
+	sdk.Logger(ctx).Trace().Msg("Configuring a Source Connector...")
 	conf, err := config.Parse(cfg)
 	if err != nil {
 		return fmt.Errorf("error parsing config: %w", err)
@@ -65,9 +65,7 @@ func (s *Source) Open(ctx context.Context, position sdk.Position) error {
 	if s.config.Password != "" {
 		dialOptions = append(dialOptions, redis.DialPassword(s.config.Password))
 	}
-	if s.config.Database >= 0 {
-		dialOptions = append(dialOptions, redis.DialDatabase(s.config.Database))
-	}
+	dialOptions = append(dialOptions, redis.DialDatabase(s.config.Database))
 
 	redisClient, err := redis.DialContext(ctx, "tcp", address, dialOptions...)
 	if err != nil {
@@ -106,7 +104,7 @@ func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
 
 // Ack is called by the conduit server after the record has been successfully processed by all destination connectors
 func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
-	sdk.Logger(ctx).Info().
+	sdk.Logger(ctx).Debug().
 		Str("position", string(position)).
 		Str("mode", string(s.config.Mode)).
 		Msg("position ack received")

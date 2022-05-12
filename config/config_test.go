@@ -38,7 +38,7 @@ func TestParse(t *testing.T) {
 				KeyPort:     "6379",
 				KeyRedisKey: "my_key",
 				KeyPassword: "12345678",
-				KeyMode:     "PUBSUB",
+				KeyMode:     "pubsub",
 			},
 			want: Config{
 				Host:          "localhost",
@@ -57,7 +57,7 @@ func TestParse(t *testing.T) {
 				KeyRedisKey: "my_key",
 				KeyDatabase: "1",
 				KeyPassword: "12345678",
-				KeyMode:     "STREAM",
+				KeyMode:     "stream",
 			},
 			want: Config{
 				Host:          "localhost",

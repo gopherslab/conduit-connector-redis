@@ -24,10 +24,11 @@ import (
 // Specification returns the connector's specification.
 func Specification() sdk.Specification {
 	return sdk.Specification{
-		Name:    "Redis",
-		Summary: "A Redis source and destination plugin for Conduit, written in Go.",
-		Version: "v0.1.0",
-		Author:  "gopherslab,Inc.",
+		Name:        "Redis",
+		Summary:     "A Redis source and destination plugin for Conduit, written in Go.",
+		Description: "Redis connector description",
+		Version:     "v0.1.0",
+		Author:      "gopherslab,Inc.",
 		DestinationParams: map[string]sdk.Parameter{
 			config.KeyHost: {
 				Default:     "localhost",
@@ -45,7 +46,7 @@ func Specification() sdk.Specification {
 				Description: "key name for connector to read.",
 			},
 			config.KeyDatabase: {
-				Default:     "",
+				Default:     "0",
 				Required:    false,
 				Description: "database name for the redis source",
 			},
@@ -77,7 +78,7 @@ func Specification() sdk.Specification {
 				Description: "key name for connector to read.",
 			},
 			config.KeyDatabase: {
-				Default:     "",
+				Default:     "0",
 				Required:    false,
 				Description: "database name for the redis source",
 			},

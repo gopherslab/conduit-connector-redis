@@ -23,13 +23,17 @@ import (
 )
 
 const (
-	KeyHost          = "redis.host"
-	KeyPort          = "redis.port"
-	KeyRedisKey      = "redis.key"
-	KeyDatabase      = "redis.database"
-	KeyPassword      = "redis.password"
-	KeyMode          = "mode"
-	KeyPollingPeriod = "pollingPeriod"
+	KeyHost              = "redis.host"
+	KeyPort              = "redis.port"
+	KeyRedisKey          = "redis.key"
+	KeyDatabase          = "redis.database"
+	KeyPassword          = "redis.password"
+	KeyMode              = "mode"
+	KeyPollingPeriod     = "pollingPeriod"
+	defaultHost          = "localhost"
+	defaultPort          = "6379"
+	defaultPollingPeriod = "1s"
+	defaultDatabase      = "0"
 )
 
 type Config struct {
@@ -44,8 +48,8 @@ type Config struct {
 type Mode string
 
 const (
-	ModePubSub Mode = "PUBSUB"
-	ModeStream Mode = "STREAM"
+	ModePubSub Mode = "pubsub"
+	ModeStream Mode = "stream"
 )
 
 var modeAll = []string{string(ModePubSub), string(ModeStream)}
@@ -53,12 +57,12 @@ var modeAll = []string{string(ModePubSub), string(ModeStream)}
 func Parse(cfg map[string]string) (Config, error) {
 	host, ok := cfg[KeyHost]
 	if !ok {
-		host = "localhost"
+		host = defaultHost
 	}
 
 	port, ok := cfg[KeyPort]
 	if !ok {
-		port = "6379"
+		port = defaultPort
 	}
 
 	key, ok := cfg[KeyRedisKey]
@@ -68,7 +72,7 @@ func Parse(cfg map[string]string) (Config, error) {
 
 	pollingPeriod, ok := cfg[KeyPollingPeriod]
 	if !ok {
-		pollingPeriod = "1s"
+		pollingPeriod = defaultPollingPeriod
 	}
 
 	pollingDuration, err := time.ParseDuration(pollingPeriod)
@@ -78,9 +82,13 @@ func Parse(cfg map[string]string) (Config, error) {
 
 	db, ok := cfg[KeyDatabase]
 	if !ok || db == "" {
-		db = "0"
+		db = defaultDatabase
 	}
-	dbInt, _ := strconv.Atoi(db)
+
+	dbInt, err := strconv.Atoi(db)
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid database passed, should be a valid int")
+	}
 
 	config := Config{
 		Host:          host,

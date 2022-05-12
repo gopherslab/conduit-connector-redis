@@ -175,11 +175,13 @@ func TestStartIterator(t *testing.T) {
 		cancel()
 		assert.Len(t, cache, 1)
 		assert.Equal(t, []sdk.Record{{
-			Position:  []byte("1652107432000-0"),
-			Metadata:  nil,
+			Position: []byte("1652107432000-0"),
+			Metadata: map[string]string{
+				"key": key,
+			},
 			CreatedAt: time.UnixMilli(1652107432000),
-			Key:       sdk.RawData([]byte("1652107432000-0")),
-			Payload:   sdk.RawData([]byte(`{"key":"value"}`)),
+			Key:       sdk.RawData("1652107432000-0"),
+			Payload:   sdk.RawData(`{"key":"value"}`),
 		}}, cache)
 	case <-ctx.Done():
 		t.Error("no data received in cache channel")
