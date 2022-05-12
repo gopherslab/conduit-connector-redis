@@ -35,7 +35,7 @@ Whenever a new message is received, a new sdk.Record is created with received me
 ```
 Where `position` value is an arbitrary position to satisfy the conduit server and same value is used in `key` to uniquely identify the messages
 
-**Note:** The messages sent to the channel (subscription messages) are not sent back to server, it is only logged as an info level log.
+**Note:** The messages sent to the channel ([subscription messages](https://redis.io/docs/manual/pubsub/)) are not sent back to server, it is only logged as an info level log.
 
 ### STREAM
 
