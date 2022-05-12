@@ -44,8 +44,9 @@ type Config struct {
 type Mode string
 
 const (
-	ModePubSub Mode = "MODE_PUBSUB"
-	ModeStream Mode = "MODE_STREAM"
+	//
+	ModePubSub Mode = "pubsub"
+	ModeStream Mode = "stream"
 )
 
 var modeAll = []string{string(ModePubSub), string(ModeStream)}
@@ -53,6 +54,8 @@ var modeAll = []string{string(ModePubSub), string(ModeStream)}
 func Parse(cfg map[string]string) (Config, error) {
 	host, ok := cfg[KeyHost]
 	if !ok {
+		// let's have all the default values saved in a constant variable at the top of the file
+		// check S3 config file for an example
 		host = "localhost"
 	}
 
@@ -80,6 +83,7 @@ func Parse(cfg map[string]string) (Config, error) {
 	if !ok || db == "" {
 		db = "0"
 	}
+	// check for the error returned
 	dbInt, _ := strconv.Atoi(db)
 
 	config := Config{

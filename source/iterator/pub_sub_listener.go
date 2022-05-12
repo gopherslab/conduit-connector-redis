@@ -41,6 +41,7 @@ func NewPubSubIterator(ctx context.Context, client redis.Conn, key string) (*Pub
 	psc := &redis.PubSubConn{Conn: client}
 	tmbWithCtx, _ := tomb.WithContext(ctx)
 	cdc := &PubSubIterator{
+		// todo: explain somewhere in the docs that key in pubsub is a regex or a pattern
 		key:     key,
 		psc:     psc,
 		mux:     &sync.Mutex{},
@@ -125,6 +126,7 @@ func (i *PubSubIterator) startListener(ctx context.Context) func() error {
 						Msg("new subscription message received")
 				case error:
 					return n
+					// todo: psc.Receive() docs show a type called "Pong", we don't have a case for it, or a default case
 				}
 			}
 		}

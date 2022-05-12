@@ -44,16 +44,21 @@ type StreamIterator struct {
 
 // NewStreamIterator creates a new instance of redis stream iterator and starts polling redis stream for new changes
 // using the last record id of last successful row read, in a separate go routine
-func NewStreamIterator(ctx context.Context,
+func NewStreamIterator(
+	ctx context.Context,
 	client redis.Conn,
 	key string,
 	pollingInterval time.Duration,
-	position sdk.Position) (*StreamIterator, error) {
+	position sdk.Position,
+) (*StreamIterator, error) {
 	keyType, err := redis.String(client.Do("TYPE", key))
 	if err != nil {
 		return nil, fmt.Errorf("error fetching type of key(%s): %w", key, err)
 	}
+
+	// why use switch for one statement check? maybe "if" is better in this case
 	switch keyType {
+	// let's have these values as constants
 	case "none", "stream":
 	// valid key
 	default:
@@ -139,6 +144,7 @@ func (i *StreamIterator) startIterator(_ context.Context) func() error {
 
 				// ensure we don't fetch and keep a lot of records in memory
 				// block till flush reads current array of records
+				// todo: let's have it block until 1/2 the array is read, so we have other records ready when it's done reading
 				select {
 				case i.caches <- records:
 					i.lastID = string(records[len(records)-1].Position)
@@ -184,6 +190,7 @@ func toRecords(resp []interface{}) ([]sdk.Record, error) {
 			return nil, fmt.Errorf("keyInfo[0]:invalid data type encountered, expected:%T, got:%T", idList, keyInfo[1])
 		}
 		for _, iID := range idList {
+			// todo: this loop is a bit congested.. maybe create a documented function to parse each element from the list?
 			idInfo, ok := iID.([]interface{})
 			if !ok {
 				return nil, fmt.Errorf("iID:invalid data type encountered, expected:%T, got:%T", idInfo, iID)

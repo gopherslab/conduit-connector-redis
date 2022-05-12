@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate mockery --name=Iterator --outpkg mocks
+
 package source
 
 import (
@@ -39,8 +41,6 @@ type Iterator interface {
 	Stop() error
 }
 
-//go:generate mockery --name=Iterator --outpkg mocks
-
 // NewSource returns an instance of sdk.Source
 func NewSource() sdk.Source {
 	return &Source{}
@@ -48,6 +48,7 @@ func NewSource() sdk.Source {
 
 // Configure validates the passed config and prepares the source connector
 func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
+	// todo: all such logging should have the trace level
 	sdk.Logger(ctx).Info().Msg("Configuring a Source Connector...")
 	conf, err := config.Parse(cfg)
 	if err != nil {
@@ -65,7 +66,7 @@ func (s *Source) Open(ctx context.Context, position sdk.Position) error {
 	if s.config.Password != "" {
 		dialOptions = append(dialOptions, redis.DialPassword(s.config.Password))
 	}
-	if s.config.Database >= 0 {
+	if s.config.Database >= 0 { // this should be checked in the config validation
 		dialOptions = append(dialOptions, redis.DialDatabase(s.config.Database))
 	}
 
@@ -106,6 +107,7 @@ func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
 
 // Ack is called by the conduit server after the record has been successfully processed by all destination connectors
 func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
+	// make this debug level log
 	sdk.Logger(ctx).Info().
 		Str("position", string(position)).
 		Str("mode", string(s.config.Mode)).

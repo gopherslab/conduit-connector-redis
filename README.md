@@ -76,6 +76,8 @@ The config passed to `Configure` can contain the following fields.
 
 | name             | description                                                                           | required | example                    |
 |------------------|---------------------------------------------------------------------------------------|----------|----------------------------|
+
+[comment]: <> ("MODE_PUBSUB"/"MODE_STREAM" should be changed to pubsub and stream, in the readme and in the specs)
 | `mode`           | the mode of running the connector                                                     | yes      | "MODE_PUBSUB"/"MODE_STREAM" |
 | `redis.key`      | the redis key to iterate over/subscribe                                               | yes      | "mystream"                 |
 | `redis.host`     | Redis Host. default is "localhost"                                                    | no       | "localhost"                |

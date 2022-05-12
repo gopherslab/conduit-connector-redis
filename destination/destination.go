@@ -40,6 +40,7 @@ func NewDestination() sdk.Destination {
 
 // Configure sets up the destination by validating and parsing the config
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
+	// trace not info
 	sdk.Logger(ctx).Info().Msg("Configuring a Destination Connector...")
 	conf, err := config.Parse(cfg)
 	if err != nil {
@@ -102,8 +103,8 @@ func (d *Destination) Write(ctx context.Context, rec sdk.Record) error {
 			return fmt.Errorf("error publishing message to channel(%s)", key)
 		}
 		return nil
-	case config.ModeStream:
 
+	case config.ModeStream:
 		keyValArgs, err := payloadToStreamArgs(rec.Payload)
 		if err != nil {
 			return fmt.Errorf("invalid payload: %w", err)
