@@ -17,7 +17,7 @@ Run `make test` to run all the tests.
 
 The redis source has 2 modes
 
-### MODE_PUBSUB
+### PUBSUB
 
 In this mode the source subscribes to the channel provided in key and starts listening for new messages published on the channel.
 The listener will stop only when the pipeline is paused or any error is encountered.
@@ -35,9 +35,9 @@ Whenever a new message is received, a new sdk.Record is created with received me
 ```
 Where `position` value is an arbitrary position to satisfy the conduit server and same value is used in `key` to uniquely identify the messages
 
-**Note:** The subscription messages are not sent back to server, it is only logged as an info level log.
+**Note:** The messages sent to the channel (subscription messages) are not sent back to server, it is only logged as an info level log.
 
-### MODE_STREAM
+### STREAM
 
 While starting the iterator, we first check the type of the key, if the key is of type `none` (key doesn't exist) or `stream`,
 Only then the iterator is initialized.
@@ -76,7 +76,7 @@ The config passed to `Configure` can contain the following fields.
 
 | name             | description                                                                           | required | example                    |
 |------------------|---------------------------------------------------------------------------------------|----------|----------------------------|
-| `mode`           | the mode of running the connector                                                     | yes      | "MODE_PUBSUB"/"MODE_STREAM" |
+| `mode`           | the mode of running the connector                                                     | yes      | "PUBSUB"/"STREAM" |
 | `redis.key`      | the redis key to iterate over/subscribe                                               | yes      | "mystream"                 |
 | `redis.host`     | Redis Host. default is "localhost"                                                    | no       | "localhost"                |
 | `redis.port`     | Redis Port. default is "6379"                                                         | no       | "6379"                     |
@@ -107,7 +107,7 @@ The config passed to `Configure` can contain the following fields.
 
 | name             | description                                                                           | required | example                    |
 |------------------|---------------------------------------------------------------------------------------|----------|----------------------------|
-| `mode`           | the mode of running the connector                                                     | yes      | "MODE_PUBSUB"/"MODE_STREAM" |
+| `mode`           | the mode of running the connector                                                     | yes      | "PUBSUB"/"STREAM" |
 | `redis.key`      | the redis key to iterate over/subscribe                                               | yes      | "mystream"                 |
 | `redis.host`     | Redis Host. default is "localhost"                                                    | no       | "localhost"                |
 | `redis.port`     | Redis Port. default is "6379"                                                         | no       | "6379"                     |

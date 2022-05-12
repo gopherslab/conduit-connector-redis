@@ -44,8 +44,8 @@ type Config struct {
 type Mode string
 
 const (
-	ModePubSub Mode = "MODE_PUBSUB"
-	ModeStream Mode = "MODE_STREAM"
+	ModePubSub Mode = "PUBSUB"
+	ModeStream Mode = "STREAM"
 )
 
 var modeAll = []string{string(ModePubSub), string(ModeStream)}
