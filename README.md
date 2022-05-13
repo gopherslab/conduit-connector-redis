@@ -19,6 +19,7 @@ The redis source has 2 modes
 
 ### MODE_PUBSUB
 
+haris: here it says "provided in key". what's this key? how is it different from mode?
 In this mode the source subscribes to the channel provided in key and starts listening for new messages published on the channel.
 The listener will stop only when the pipeline is paused or any error is encountered.
 Whenever a new message is received, a new sdk.Record is created with received message as `payload`. The resulting sdk.Record has the following format:

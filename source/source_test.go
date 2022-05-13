@@ -77,6 +77,8 @@ func TestConfigure(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := cdc.Configure(context.Background(), tt.field.cfg)
+			// haris: it would be good to be more precise here and check what the error is, not only that it's present
+			// not high on the priority list IMHO; we can leave a todo for now
 			if tt.errMsg {
 				assert.NotNil(t, err)
 			}
@@ -129,6 +131,7 @@ func TestOpen(t *testing.T) {
 			} else {
 				assert.Nil(t, err)
 			}
+			// haris: maybe defer?
 			cancel()
 		})
 	}

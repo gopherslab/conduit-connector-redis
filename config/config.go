@@ -33,12 +33,14 @@ const (
 )
 
 type Config struct {
-	Host          string
-	Port          string
-	Database      int
-	Key           string
-	Password      string
-	Mode          Mode
+	Host     string
+	Port     string
+	Database int
+	// haris: would be good to explain here what this is
+	Key      string
+	Password string
+	Mode     Mode
+	// haris: would be good to explain when will this be used (I guess pub/sub not?)
 	PollingPeriod time.Duration
 }
 type Mode string

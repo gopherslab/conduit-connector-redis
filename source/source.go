@@ -16,6 +16,9 @@ limitations under the License.
 
 //go:generate mockery --name=Iterator --outpkg mocks
 
+// haris: as discussed on Slack, it would be good to have integration tests.
+// the acceptance tests should help cover that.
+// (leaving the comment so we don't loose track of it)
 package source
 
 import (
@@ -36,6 +39,7 @@ type Source struct {
 }
 
 type Iterator interface {
+	// haris: it looks ctx is never used in any of the implementations?
 	HasNext(ctx context.Context) bool
 	Next(ctx context.Context) (sdk.Record, error)
 	Stop() error
