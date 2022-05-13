@@ -174,6 +174,7 @@ func (i *StreamIterator) flush() error {
 }
 
 // toRecords parses the XREAD command's response and returns a slice of sdk.Record
+// haris: do we have any docs explaining what `resp` is?
 func toRecords(resp []interface{}) ([]sdk.Record, error) {
 	records := make([]sdk.Record, 0)
 	for _, iKey := range resp {
