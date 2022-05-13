@@ -26,9 +26,9 @@ func Specification() sdk.Specification {
 	return sdk.Specification{
 		Name:        "Redis",
 		Summary:     "A Redis source and destination plugin for Conduit, written in Go.",
-		Description: "Redis connector description",
+		Description: "A Redis source and destination plugin for Conduit, written in Go. It supports Redis Pub/Sub and Streams.",
 		Version:     "v0.1.0",
-		Author:      "gopherslab,Inc.",
+		Author:      "Gophers Lab Technologies Pvt Ltd",
 		DestinationParams: map[string]sdk.Parameter{
 			config.KeyHost: {
 				Default:     "localhost",

@@ -26,7 +26,8 @@ Whenever a new message is received, a new sdk.Record is created with received me
 ```json
 {
   "metadata": {
-    "type": "message"
+    "type": "message",
+    "channel": "<channel>"
   },
   "position": "<channel>_<current_ns_timestamp>",
   "key": "<channel>_<current_ns_timestamp>",
@@ -47,7 +48,9 @@ The stream iterator starts polling for new data every `pollingPeriod`. The new d
 The resulting sdk.Record has the following format:
 ```json
 {
-  "metadata": null,
+  "metadata": {
+    "key": "<key>"
+  },
   "position": "<stream_msg_id>",
   "key": "<stream_msg_id>",
   "payload": "<message received from channel>",

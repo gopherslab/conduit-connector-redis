@@ -106,7 +106,8 @@ func (i *PubSubIterator) startListener(ctx context.Context) func() error {
 					// no position set, as redis doesn't persist the message, so message once lost can't be recovered
 					data := sdk.Record{
 						Metadata: map[string]string{
-							"type": "message",
+							"type":    "message",
+							"channel": n.Channel,
 						},
 						// a random position, to keep conduit server happy
 						Position:  []byte(key),
