@@ -42,7 +42,7 @@ func TestParse(t *testing.T) {
 			},
 			want: Config{
 				Host:          "localhost",
-				Key:           "my_key",
+				RedisKey:      "my_key",
 				Port:          "6379",
 				Database:      0,
 				Password:      "12345678",
@@ -61,7 +61,7 @@ func TestParse(t *testing.T) {
 			},
 			want: Config{
 				Host:          "localhost",
-				Key:           "my_key",
+				RedisKey:      "my_key",
 				Port:          "6379",
 				Database:      1,
 				Password:      "12345678",

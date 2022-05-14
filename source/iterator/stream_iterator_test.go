@@ -129,7 +129,7 @@ func TestStreamIterator_HasNext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cdc := &StreamIterator{buffer: make(chan sdk.Record, 1), tomb: &tomb.Tomb{}}
 			tt.fn(cdc)
-			res := cdc.HasNext(context.Background())
+			res := cdc.HasNext()
 			assert.Equal(t, res, tt.response)
 		})
 	}
@@ -180,7 +180,7 @@ func TestStartIterator(t *testing.T) {
 				"key": key,
 			},
 			CreatedAt: time.UnixMilli(1652107432000),
-			Key:       sdk.RawData("1652107432000-0"),
+			Key:       sdk.RawData(key),
 			Payload:   sdk.RawData(`{"key":"value"}`),
 		}}, cache)
 	case <-ctx.Done():

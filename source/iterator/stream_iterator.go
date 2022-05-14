@@ -93,7 +93,7 @@ func NewStreamIterator(ctx context.Context,
 }
 
 // HasNext returns whether there are any more records to be returned
-func (i *StreamIterator) HasNext(_ context.Context) bool {
+func (i *StreamIterator) HasNext() bool {
 	return len(i.buffer) > 0 || !i.tomb.Alive() // if tomb is dead we return true so caller will fetch error with Next
 }
 
@@ -169,8 +169,7 @@ func (i *StreamIterator) flush() error {
 				select {
 				case <-i.tomb.Dying():
 					return i.tomb.Err()
-				default:
-					i.buffer <- record
+				case i.buffer <- record:
 				}
 			}
 		}
@@ -178,6 +177,22 @@ func (i *StreamIterator) flush() error {
 }
 
 // toRecords parses the XREAD command's response and returns a slice of sdk.Record
+// The response from redis XREAD is of the format:
+//[
+//  [
+//    <redis_key>,
+//    [
+//      [
+//        <msg_id>,
+//        [
+//          <key>,
+//          <value>,
+//        ]
+//      ]
+//    ]
+//  ]
+//]
+
 func toRecords(resp []interface{}) ([]sdk.Record, error) {
 	records := make([]sdk.Record, 0)
 	for _, iKey := range resp {
@@ -204,7 +219,7 @@ func toRecords(resp []interface{}) ([]sdk.Record, error) {
 					"key": string(key),
 				},
 				CreatedAt: getTimeFromPosition(string(position)),
-				Key:       sdk.RawData(position),
+				Key:       sdk.RawData(key),
 				Payload:   sdk.RawData(payload),
 			})
 		}
@@ -212,6 +227,19 @@ func toRecords(resp []interface{}) ([]sdk.Record, error) {
 	return records, nil
 }
 
+// parseKeyData parses the data for each key received in the XREAD response, the sample input is:
+//  [
+//    <redis_key>,
+//    [
+//      [
+//        <msg_id>,
+//        [
+//          <key>,
+//          <value>,
+//        ]
+//      ]
+//    ]
+//  ]
 func parseKeyData(d interface{}) ([]byte, []interface{}, error) {
 	keyInfo, ok := d.([]interface{})
 	if !ok {
@@ -228,6 +256,14 @@ func parseKeyData(d interface{}) ([]byte, []interface{}, error) {
 	return key, idList, nil
 }
 
+// parsePositionData parses the id array (multiple messages) of a key, the sample input is:
+//      [
+//        <msg_id>,
+//        [
+//          <key>,
+//          <value>,
+//        ]
+//      ]
 func parsePositionData(i interface{}) ([]byte, []interface{}, error) {
 	idInfo, ok := i.([]interface{})
 	if !ok {
@@ -244,6 +280,9 @@ func parsePositionData(i interface{}) ([]byte, []interface{}, error) {
 	return position, fieldList, nil
 }
 
+// getTimeFromPosition parses the id of a stream message to retrieve the creation time, if available,
+// otherwise return current time.
+// Message pushed to stream with auto generated id have the following format for id: <current_time_ms-int>
 func getTimeFromPosition(pos string) time.Time {
 	posParts := strings.Split(pos, "-")
 	ts, err := strconv.ParseInt(posParts[0], 10, 64)
@@ -255,6 +294,11 @@ func getTimeFromPosition(pos string) time.Time {
 }
 
 // arrInterfaceToMap converts the stream key-val response to map[string]string
+// sample input being:
+//        [
+//          <key>,
+//          <value>,
+//        ]
 func arrInterfaceToMap(values []interface{}) (map[string]string, error) {
 	if len(values)%2 != 0 {
 		return nil, fmt.Errorf("arrInterfaceToMap expects even number of values result, got %d", len(values))

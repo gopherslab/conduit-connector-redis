@@ -32,23 +32,14 @@ import (
 )
 
 func TestConfigure(t *testing.T) {
-	invalidCfg := map[string]string{
-		"host":     "localhost",
-		"key":      "key",
-		"port":     "6567",
-		"database": "database",
-		"password": "password",
-		"channel":  "sample",
-		"mode":     "test",
-	}
 	validConfig := map[string]string{
-		"host":     "localhost",
-		"key":      "key",
-		"port":     "6567",
-		"database": "database",
-		"password": "password",
-		"channel":  "sample",
-		"mode":     "pubsub",
+		config.KeyRedisKey: "key",
+		config.KeyMode:     string(config.ModeStream),
+	}
+	invalidCfg := map[string]string{
+		config.KeyRedisKey: "key",
+		config.KeyDatabase: "database",
+		config.KeyMode:     string(config.ModePubSub),
 	}
 	type field struct {
 		cfg map[string]string
@@ -57,28 +48,30 @@ func TestConfigure(t *testing.T) {
 		name   string
 		field  field
 		want   config.Config
-		errMsg bool
+		errMsg string
 	}{
 		{
 			name: "valid config",
 			field: field{
 				cfg: validConfig,
 			},
-			errMsg: false,
+			errMsg: "",
 		}, {
 			name: "invalid config",
 			field: field{
 				cfg: invalidCfg,
 			},
-			errMsg: true,
+			errMsg: `error parsing config: invalid database passed, should be a valid int`,
 		},
 	}
 	var cdc Source
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := cdc.Configure(context.Background(), tt.field.cfg)
-			if tt.errMsg {
-				assert.NotNil(t, err)
+			if tt.errMsg != "" {
+				assert.EqualError(t, err, tt.errMsg)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -123,15 +116,31 @@ func TestOpen(t *testing.T) {
 			s.config.Host = mr.Host()
 			s.config.Port = mr.Port()
 			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			err = s.Open(ctx, sdk.Position{})
 			if tt.err != nil {
 				assert.EqualError(t, err, tt.err.Error())
 			} else {
 				assert.Nil(t, err)
 			}
-			cancel()
 		})
 	}
+}
+
+func TestOpenWithUserAuth(t *testing.T) {
+	mr, err := miniredis.Run()
+	assert.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s := new(Source)
+	s.config.Host = mr.Host()
+	s.config.Port = mr.Port()
+	s.config.Mode = config.ModeStream
+	s.config.Username = "dummy_user"
+	s.config.Password = "dummy_password"
+	s.config.PollingPeriod = time.Millisecond
+	mr.RequireUserAuth(s.config.Username, s.config.Password)
+	assert.NoError(t, s.Open(ctx, sdk.Position{}))
 }
 
 func TestRead(t *testing.T) {

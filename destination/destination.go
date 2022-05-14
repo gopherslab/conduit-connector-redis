@@ -62,6 +62,9 @@ func (d *Destination) Open(ctx context.Context) error {
 	if d.config.Password != "" {
 		dialOptions = append(dialOptions, redis.DialPassword(d.config.Password))
 	}
+	if d.config.Username != "" {
+		dialOptions = append(dialOptions, redis.DialUsername(d.config.Username))
+	}
 	dialOptions = append(dialOptions, redis.DialDatabase(d.config.Database))
 
 	redisClient, err := redis.DialContext(ctx, "tcp", address, dialOptions...)
@@ -81,9 +84,9 @@ func (d *Destination) validateKey(client redis.Conn) error {
 	// as we can create channel with a key even if that key already exists and have some other data type
 
 	case config.ModeStream:
-		keyType, err := redis.String(client.Do("TYPE", d.config.Key))
+		keyType, err := redis.String(client.Do("TYPE", d.config.RedisKey))
 		if err != nil {
-			return fmt.Errorf("error fetching type of key(%s): %w", d.config.Key, err)
+			return fmt.Errorf("error fetching type of key(%s): %w", d.config.RedisKey, err)
 		}
 		if keyType != keyTypeNone && keyType != keyTypeStream {
 			return fmt.Errorf("invalid key type: %s, expected none or stream", keyType)
@@ -97,13 +100,13 @@ func (d *Destination) validateKey(client redis.Conn) error {
 // Write receives the record to be written and based on the mode either publishes to PUB/SUB channel
 // or add as key-value pair to stream using XADD, the id of the newly added key is generated automatically
 func (d *Destination) Write(ctx context.Context, rec sdk.Record) error {
-	key := d.config.Key
+	key := d.config.RedisKey
 
 	switch d.config.Mode {
 	case config.ModePubSub:
 		_, err := d.client.Do("PUBLISH", key, string(rec.Payload.Bytes()))
 		if err != nil {
-			return fmt.Errorf("error publishing message to channel(%s)", key)
+			return fmt.Errorf("error publishing message to channel(%s): %w", key, err)
 		}
 		return nil
 

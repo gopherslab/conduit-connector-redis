@@ -15,13 +15,24 @@ Run `make test` to run all the tests.
 
 ## Redis Source
 
-The redis source has 2 modes
+The redis connector watches for new data being added in a *single* redis key supplied in `redis.key`. 
+Currently, the connector supports two type of Redis Data structures: `pubsub` & `stream`.
+To decide which type of DS the redis key holds, the `mode` setting is used. 
+The connector by default starts in `pubsub` mode and subscribes to the channel provided in `redis.key` settings using `SUBSCRIBE <redis.key>`
+To start stream iterator pass `stream` as mode value.
 
-### PUBSUB
+**Q. Why can't we use `TYPE <key>` command to decide which iterator to start?**
+A. There are 2 reasons for that:
+- The pubsub channel names can conflict with existing keys of other DS types. 
+For ex: there can be an existing key named `mystream` which holds stream DS and still the same name can be used as channel name
+- `TYPE` command on channel name returns `none`
 
-In this mode the source subscribes to the channel provided in key and starts listening for new messages published on the channel.
+
+### Mode: pubsub
+
+In this mode the source subscribes to the channel provided in `redis.key` setting, during configuration, and starts listening for new messages published on the channel.
 The listener will stop only when the pipeline is paused or any error is encountered.
-**NOTE:** The connector doesn't support pattern based channel subscription, it only subscribes to a channel using `SUBSCRIBE <key>`
+**NOTE:** The connector doesn't support pattern based channel subscription, it only subscribes to a single channel using `SUBSCRIBE <key>`
 Whenever a new message is received, a new sdk.Record is created with received message as `payload`. The resulting sdk.Record has the following format:
 ```json
 {
@@ -30,7 +41,7 @@ Whenever a new message is received, a new sdk.Record is created with received me
     "channel": "<channel>"
   },
   "position": "<channel>_<current_ns_timestamp>",
-  "key": "<channel>_<current_ns_timestamp>",
+  "key": "<channel>",
   "payload": "<message received from channel>",
   "created_at": "<current_time in RFC3339 format>"
 }
@@ -40,11 +51,11 @@ Where `position` value is an arbitrary position to satisfy the conduit server an
 **Note:** The ([subscription messages](https://redis.io/docs/manual/pubsub/)) sent to the channel are not sent back to server, it is only logged as an info level log.
 Subscription messages are the messages confirming the successful subscription to the channel. 
 
-### STREAM
+### Mode: stream
 
-While starting the iterator, we first check the type of the key, if the key is of type `none` (key doesn't exist) or `stream`,
+While starting the iterator, the connector first checks the type of the key, the valid redis key is of type `none` (key doesn't exist) or `stream`,
 Only then the iterator is initialized.
-The stream iterator starts polling for new data every `pollingPeriod`. The new data is then inserted into a buffer that is checked on each Read request.
+The stream iterator starts polling for new data every `pollingPeriod`. The new data slice is then inserted into a buffer that is checked on each Read request.
 The resulting sdk.Record has the following format:
 ```json
 {
@@ -52,8 +63,8 @@ The resulting sdk.Record has the following format:
     "key": "<key>"
   },
   "position": "<stream_msg_id>",
-  "key": "<stream_msg_id>",
-  "payload": "<message received from channel>",
+  "key": "<key>",
+  "payload": "<JSON of key-val pair from stream>",
   "created_at": "<time>"
 }
 ```
@@ -70,9 +81,9 @@ last successfully read message is used as the offset id for the subsequent XREAD
 
 ### Record Keys
 
-* Pub/Sub mode: An arbitrary key is created for Pub/Sub messages with the format: `<channel>_<current_ts_nano>`
+* Pub/Sub mode: The redis channel name is uses as the record key
 
-* Stream mode: The message id assigned to the stream message on calling XADD is used to uniquely identify the records in case of Stream mode.
+* Stream mode: The redis key name is used as the record key 
 
 
 ### Configuration
@@ -85,6 +96,7 @@ The config passed to `Configure` can contain the following fields.
 | `redis.host`     | Redis Host. default is "localhost"                                                    | no       | "localhost"       |
 | `redis.port`     | Redis Port. default is "6379"                                                         | no       | "6379"            |
 | `redis.database` | the redis database to use. default is "0"                                             | no       | "0"               |
+| `redis.username` | the username to use for redis connection                                              | no       | "sample_user"     |
 | `redis.password` | the password to use for redis connection                                              | no       | "sample_password" |
 | `mode`           | the mode of running the connector. default is pubsub                                  | no       | "pubsub"/"stream" |
 | `pollingPeriod`  | polling period for the CDC mode, formatted as a time.Duration string. default is "1s" | no       | "2s", "500ms"     |
@@ -116,5 +128,6 @@ The config passed to `Configure` can contain the following fields.
 | `redis.host`     | Redis Host. default is "localhost"                                          | no       | "localhost"                |
 | `redis.port`     | Redis Port. default is "6379"                                               | no       | "6379"                     |
 | `redis.database` | the redis database to use. default is "0"                                   | no       | "0"                        |
+| `redis.username` | the username to use for redis connection                                    | no       | "sample_user"     |
 | `redis.password` | the password to use for redis connection                                    | no       | "sample_password"          |
 | `mode`           | the mode of running the connector. default is pubsub                        | no       | "pubsub"/"stream" |

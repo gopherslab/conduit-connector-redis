@@ -55,6 +55,11 @@ func Specification() sdk.Specification {
 				Required:    false,
 				Description: "Password to the redis source.",
 			},
+			config.KeyUsername: {
+				Default:     "",
+				Required:    false,
+				Description: "Username to the redis source.",
+			},
 			config.KeyMode: {
 				Default:     "pubsub",
 				Required:    false,
@@ -86,6 +91,11 @@ func Specification() sdk.Specification {
 				Default:     "",
 				Required:    false,
 				Description: "Password to the redis source.",
+			},
+			config.KeyUsername: {
+				Default:     "",
+				Required:    false,
+				Description: "Username to the redis source.",
 			},
 			config.KeyMode: {
 				Default:     "pubsub",
