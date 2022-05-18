@@ -23,7 +23,6 @@ import (
 
 	"math/rand"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -111,10 +110,7 @@ func (d AcceptanceTestDriver) WriteToSource(t *testing.T, records []sdk.Record) 
 	is.NoErr(err)
 	records = d.generateRecords(len(records))
 	// try to write using WriteAsync and fallback to Write if it's not supported
-	err = d.writeAsync(ctx, dest, records)
-	if errors.Is(err, sdk.ErrUnimplemented) {
-		err = d.write(ctx, dest, records)
-	}
+	err = d.write(ctx, dest, records)
 	is.NoErr(err)
 
 	cancel() // cancel context to simulate stop
@@ -122,42 +118,6 @@ func (d AcceptanceTestDriver) WriteToSource(t *testing.T, records []sdk.Record) 
 	is.NoErr(err)
 
 	return records
-}
-
-// writeAsync writes records to destination using Destination.WriteAsync.
-func (d AcceptanceTestDriver) writeAsync(ctx context.Context, dest sdk.Destination, records []sdk.Record) error {
-	var waitForAck sync.WaitGroup
-	var ackErr error
-
-	for _, r := range records {
-		waitForAck.Add(1)
-		ack := func(err error) error {
-			defer waitForAck.Done()
-			if ackErr == nil { // only overwrite a nil error
-				ackErr = err
-			}
-			return nil
-		}
-		err := dest.WriteAsync(ctx, r, ack)
-		if err != nil {
-			return err
-		}
-	}
-
-	// flush to make sure the records get written to the destination
-	err := dest.Flush(ctx)
-	if err != nil {
-		return err
-	}
-
-	// TODO create timeout for wait to prevent deadlock for badly written connectors
-	waitForAck.Wait()
-	if ackErr != nil {
-		return ackErr
-	}
-
-	// records were successfully written
-	return nil
 }
 
 // write writes records to destination using Destination.Write.
