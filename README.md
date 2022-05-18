@@ -104,8 +104,12 @@ The config passed to `Configure` can contain the following fields.
 ### Known Limitations
 
 * If a PUB/SUB message is lost due to system crash, it can not be retrieved back. Also, the messages published during the down-time will not be received.
+* The connector doesn't support pattern/multiple channel subscription, it only subscribes to a single channel.
+* The connector doesn't support multiple stream keys iteration, it only iterates over a single stream key.
 
-* The connector doesn't support pattern based channel subscription, it only subscribes to a single channel using `SUBSCRIBE <key>`
+### Planned for next phase
+* Support pattern/multiple channel subscription
+* Support multiple stream DS keys
 
 ## Redis Destination
 
