@@ -63,7 +63,7 @@ func TestAcceptance(t *testing.T) {
 
 	sdk.AcceptanceTest(t, AcceptanceTestDriver{
 		ConfigurableAcceptanceTestDriver: sdk.ConfigurableAcceptanceTestDriver{Config: sdk.ConfigurableAcceptanceTestDriverConfig{
-			Connector: sdk.Connector{ // Note that this variable should rather be created globally in `connector.go`
+			Connector: sdk.Connector{
 				NewSpecification: Specification,
 				NewSource:        source.NewSource,
 				NewDestination:   destination.NewDestination,

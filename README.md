@@ -16,7 +16,7 @@ Run `make test` to run all the tests.
 ## Redis Source
 
 The redis connector watches for new data being added in a *single* redis key supplied in `redis.key`. 
-Currently, the connector supports two type of Redis Data structures: `pubsub` & `stream`.
+Currently, the connector supports two type of Redis Data structures(DS): `pubsub` & `stream`.
 To decide which type of DS the redis key holds, the `mode` setting is used. 
 The connector by default starts in `pubsub` mode and subscribes to the channel provided in `redis.key` settings using `SUBSCRIBE <redis.key>`
 To start stream iterator pass `stream` as mode value.
@@ -104,6 +104,8 @@ The config passed to `Configure` can contain the following fields.
 ### Known Limitations
 
 * If a PUB/SUB message is lost due to system crash, it can not be retrieved back. Also, the messages published during the down-time will not be received.
+
+* The connector doesn't support pattern based channel subscription, it only subscribes to a single channel using `SUBSCRIBE <key>`
 
 ## Redis Destination
 
