@@ -59,8 +59,9 @@ func NewPubSubIterator(ctx context.Context, client redis.Conn, key string) (*Pub
 }
 
 // HasNext returns whether there are any more records to be returned
+// or when the error is to be returned by the Next function
 func (i *PubSubIterator) HasNext() bool {
-	return len(i.records) > 0 || !i.tomb.Alive()
+	return len(i.records) > 0 || !i.tomb.Alive() // if tomb is dead we return true so caller will fetch error with Next
 }
 
 // Next pops and returns the first message from records queue
@@ -126,7 +127,7 @@ func (i *PubSubIterator) startListener(ctx context.Context) func() error {
 					i.mux.Unlock()
 				case redis.Subscription:
 					// this message is only received at time of successful subscription/unsubscription
-					sdk.Logger(i.tomb.Context(ctx)).Info().
+					sdk.Logger(i.tomb.Context(ctx)).Trace().
 						Str("kind", n.Kind).
 						Int("sub_count", n.Count).
 						Str("channel", n.Channel).
