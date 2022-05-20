@@ -156,28 +156,38 @@ func TestNewCDCIterator_Next(t *testing.T) {
 	mr.Publish(redisChannel, testMessage1)
 
 	var rec sdk.Record
-	for ctx.Err() == nil {
-		rec, err = res.Next(ctx)
-		if err != nil && err == sdk.ErrBackoffRetry {
-			t.Log("backoff received, waiting for 400ms")
-			time.Sleep(400 * time.Millisecond)
-			continue
+	ticker := time.NewTicker(400 * time.Millisecond)
+	defer ticker.Stop()
+	retryCount := 0
+	for {
+		select {
+		case <-ctx.Done():
+		case <-ticker.C:
+			if retryCount >= 10 {
+				break
+			}
+			rec, err = res.Next(ctx)
+			if err != nil && err == sdk.ErrBackoffRetry {
+				t.Log("backoff received, waiting for 400ms")
+				retryCount++
+				continue
+			}
+			assert.NoError(t, err)
+			assert.NotEmpty(t, rec.Payload)
+			assert.Equal(t, string(rec.Payload.Bytes()), testMessage)
+
+			cancel()
+			// 2 messages were published, should not get empty record
+			rec, err = res.Next(ctx)
+			assert.NotEmpty(t, rec)
+			assert.Equal(t, string(rec.Payload.Bytes()), testMessage1)
+			assert.NoError(t, err)
+
+			// no more messages, try Next again
+			rec, err = res.Next(ctx)
+			assert.Empty(t, rec)
+			assert.EqualError(t, err, "context canceled")
+			return
 		}
-		break
 	}
-	assert.NoError(t, err)
-	assert.NotEmpty(t, rec.Payload)
-	assert.Equal(t, string(rec.Payload.Bytes()), testMessage)
-
-	cancel()
-	// 2 messages were published, should not get empty record
-	rec, err = res.Next(ctx)
-	assert.NotEmpty(t, rec)
-	assert.Equal(t, string(rec.Payload.Bytes()), testMessage1)
-	assert.NoError(t, err)
-
-	// no more messages, try Next again
-	rec, err = res.Next(ctx)
-	assert.Empty(t, rec)
-	assert.EqualError(t, err, "context canceled")
 }
