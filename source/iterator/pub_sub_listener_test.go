@@ -163,12 +163,13 @@ func TestNewCDCIterator_Next(t *testing.T) {
 		select {
 		case <-ctx.Done():
 		case <-ticker.C:
-			if retryCount >= 10 {
-				break
-			}
 			rec, err = res.Next(ctx)
 			if err != nil && err == sdk.ErrBackoffRetry {
 				t.Log("backoff received, waiting for 400ms")
+				if retryCount >= 10 {
+					t.Error("retry count exceeded waiting for message, failing now")
+					return
+				}
 				retryCount++
 				continue
 			}

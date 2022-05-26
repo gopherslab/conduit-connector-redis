@@ -120,7 +120,7 @@ func (d AcceptanceTestDriver) WriteToSource(t *testing.T, records []sdk.Record) 
 	return records
 }
 
-// write writes records to destination using Destination.Write.
+// write records to destination using Destination.Write.
 func (d AcceptanceTestDriver) write(ctx context.Context, dest sdk.Destination, records []sdk.Record) error {
 	for _, r := range records {
 		err := dest.Write(ctx, r)

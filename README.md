@@ -81,7 +81,7 @@ last successfully read message is used as the offset id for the subsequent XREAD
 
 ### Record Keys
 
-* Pub/Sub mode: The redis channel name is uses as the record key
+* Pub/Sub mode: The redis channel name is used as the record key
 
 * Stream mode: The redis key name is used as the record key 
 
@@ -90,16 +90,16 @@ last successfully read message is used as the offset id for the subsequent XREAD
 
 The config passed to `Configure` can contain the following fields.
 
-| name             | description                                                                           | required | example           |
-|------------------|---------------------------------------------------------------------------------------|----------|-------------------|
-| `redis.key`      | the redis key to iterate over/subscribe(pattern subscription not supported)           | yes      | "mystream"        |
-| `redis.host`     | Redis Host. default is "localhost"                                                    | no       | "localhost"       |
-| `redis.port`     | Redis Port. default is "6379"                                                         | no       | "6379"            |
-| `redis.database` | the redis database to use. default is "0"                                             | no       | "0"               |
-| `redis.username` | the username to use for redis connection                                              | no       | "sample_user"     |
-| `redis.password` | the password to use for redis connection                                              | no       | "sample_password" |
-| `mode`           | the mode of running the connector. default is pubsub                                  | no       | "pubsub"/"stream" |
-| `pollingPeriod`  | polling period for the CDC mode, formatted as a time.Duration string. default is "1s" | no       | "2s", "500ms"     |
+| name             | description                                                                           | required | example            |
+|------------------|---------------------------------------------------------------------------------------|----------|--------------------|
+| `redis.key`      | the redis key to iterate over/subscribe(pattern subscription not supported)           | yes      | "mystream"         |
+| `redis.host`     | Redis Host. default is "localhost"                                                    | no       | "localhost"        |
+| `redis.port`     | Redis Port. default is "6379"                                                         | no       | "6379"             |
+| `redis.database` | the redis database to use. default is "0"                                             | no       | "0"                |
+| `redis.username` | the username to use for redis connection                                              | no       | "sample_user"      |
+| `redis.password` | the password to use for redis connection                                              | no       | "sample_password"  |
+| `mode`           | the mode of running the connector. default is pubsub                                  | no       | "pubsub", "stream" |
+| `pollingPeriod`  | polling period for the CDC mode, formatted as a time.Duration string. default is "1s" | no       | "2s", "500ms"      |
 
 ### Known Limitations
 
@@ -128,12 +128,12 @@ In case of Stream Mode, the message should be of valid type `map[string]string`,
 
 The config passed to `Configure` can contain the following fields.
 
-| name             | description                                                                 | required | example                    |
-|------------------|-----------------------------------------------------------------------------|----------|----------------------------|
-| `redis.key`      | the redis key to iterate over/subscribe(pattern subscription not supported) | yes      | "mystream"                 |
-| `redis.host`     | Redis Host. default is "localhost"                                          | no       | "localhost"                |
-| `redis.port`     | Redis Port. default is "6379"                                               | no       | "6379"                     |
-| `redis.database` | the redis database to use. default is "0"                                   | no       | "0"                        |
-| `redis.username` | the username to use for redis connection                                    | no       | "sample_user"     |
-| `redis.password` | the password to use for redis connection                                    | no       | "sample_password"          |
-| `mode`           | the mode of running the connector. default is pubsub                        | no       | "pubsub"/"stream" |
+| name             | description                                                                 | required | example            |
+|------------------|-----------------------------------------------------------------------------|----------|--------------------|
+| `redis.key`      | the redis key to iterate over/subscribe(pattern subscription not supported) | yes      | "mystream"         |
+| `redis.host`     | Redis Host. default is "localhost"                                          | no       | "localhost"        |
+| `redis.port`     | Redis Port. default is "6379"                                               | no       | "6379"             |
+| `redis.database` | the redis database to use. default is "0"                                   | no       | "0"                |
+| `redis.username` | the username to use for redis connection                                    | no       | "sample_user"      |
+| `redis.password` | the password to use for redis connection                                    | no       | "sample_password"  |
+| `mode`           | the mode of running the connector. default is pubsub                        | no       | "pubsub", "stream" |
