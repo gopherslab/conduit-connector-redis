@@ -59,18 +59,22 @@ func NewPubSubIterator(ctx context.Context, client redis.Conn, key string) (*Pub
 }
 
 // HasNext returns whether there are any more records to be returned
-func (i *PubSubIterator) HasNext(_ context.Context) bool {
-	return len(i.records) > 0 || !i.tomb.Alive()
+// or when the error is to be returned by the Next function
+func (i *PubSubIterator) HasNext() bool {
+	return len(i.records) > 0 || !i.tomb.Alive() // if tomb is dead we return true so caller will fetch error with Next
 }
 
 // Next pops and returns the first message from records queue
 func (i *PubSubIterator) Next(ctx context.Context) (sdk.Record, error) {
+	// acquire lock before popping out the first record from records slice
+	// this is to avoid simultaneous write from startIterator goroutine
 	i.mux.Lock()
 	defer i.mux.Unlock()
 
 	if len(i.records) > 0 {
+		// pop the first record from the records slice
 		rec := i.records[0]
-		i.records = i.records[1:]
+		i.records = i.records[1:] // remove the first record from slice
 		return rec, nil
 	}
 	select {
@@ -83,7 +87,8 @@ func (i *PubSubIterator) Next(ctx context.Context) (sdk.Record, error) {
 	}
 }
 
-// Stop stops the listener and closes the connection to redis
+// Stop sends a kill signal to tomb, converting the tomb status to Dying
+// giving go routines time to gracefully stop execution
 func (i *PubSubIterator) Stop() error {
 	i.tomb.Kill(errors.New("listener stopped"))
 	return nil
@@ -106,25 +111,37 @@ func (i *PubSubIterator) startListener(ctx context.Context) func() error {
 					// no position set, as redis doesn't persist the message, so message once lost can't be recovered
 					data := sdk.Record{
 						Metadata: map[string]string{
-							"type": "message",
+							"type":    "message",
+							"channel": n.Channel,
 						},
 						// a random position, to keep conduit server happy
 						Position:  []byte(key),
 						CreatedAt: time.Now(),
-						Key:       sdk.RawData(key),
+						Key:       sdk.RawData(n.Channel),
 						Payload:   sdk.RawData(n.Data),
 					}
+
+					// acquire lock before appending the new records to records slice, to avoid race between Next() and append
 					i.mux.Lock()
 					i.records = append(i.records, data)
 					i.mux.Unlock()
 				case redis.Subscription:
-					sdk.Logger(i.tomb.Context(ctx)).Info().
+					// this message is only received at time of successful subscription/unsubscription
+					sdk.Logger(i.tomb.Context(ctx)).Trace().
 						Str("kind", n.Kind).
 						Int("sub_count", n.Count).
 						Str("channel", n.Channel).
 						Msg("new subscription message received")
+				case redis.Pong:
+					sdk.Logger(i.tomb.Context(ctx)).Trace().
+						Msg("pong message received")
 				case error:
 					return n
+				default:
+					// There can only be 4 type of messages, if in future a new message type is added log unknown type error
+					// So we can rectify it ASAP, instead of it being buried in lower level logs
+					sdk.Logger(ctx).Error().Str("msg_type", fmt.Sprintf("%T", n)).Msg("unknown message type received")
+					// skip returning error, so as not to break existing functionality
 				}
 			}
 		}

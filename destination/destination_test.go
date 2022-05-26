@@ -24,6 +24,7 @@ import (
 	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/conduitio/conduit-connector-redis/config"
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	"github.com/gomodule/redigo/redis"
 	"github.com/rafaeljusto/redigomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -89,11 +90,28 @@ func TestNewDestination(t *testing.T) {
 func TestOpenErr(t *testing.T) {
 	mr, err := miniredis.Run()
 	assert.NoError(t, err)
+
 	d := new(Destination)
 	d.config.Host = mr.Host()
 	d.config.Port = mr.Port()
 	d.config.Mode = "invalid_mode"
+	d.config.Password = "dummy_password"
+	mr.RequireAuth(d.config.Password)
 	assert.EqualError(t, d.Open(context.Background()), "invalid mode(invalid_mode) encountered")
+}
+
+func TestOpenWithUserAuth(t *testing.T) {
+	mr, err := miniredis.Run()
+	assert.NoError(t, err)
+
+	d := new(Destination)
+	d.config.Host = mr.Host()
+	d.config.Port = mr.Port()
+	d.config.Mode = config.ModeStream
+	d.config.Username = "dummy_user"
+	d.config.Password = "dummy_password"
+	mr.RequireUserAuth(d.config.Username, d.config.Password)
+	assert.NoError(t, d.Open(context.Background()))
 }
 
 func TestOpen(t *testing.T) {
@@ -152,7 +170,7 @@ func TestValidateKey(t *testing.T) {
 			tt.fn(c)
 			d := new(Destination)
 			d.config.Mode = tt.mode
-			d.config.Key = "dummy_key"
+			d.config.RedisKey = "dummy_key"
 			err := d.validateKey(c)
 			if tt.err != nil {
 				assert.EqualError(t, err, tt.err.Error())
@@ -167,6 +185,7 @@ func TestWrite(t *testing.T) {
 	validJSON := []byte(`{"some":"json"}`)
 	invalidJSON := []byte(`1,2,3,4`)
 	key := "dummy_key"
+
 	tests := []struct {
 		name        string
 		data        sdk.Record
@@ -180,13 +199,28 @@ func TestWrite(t *testing.T) {
 				Payload: sdk.RawData(validJSON),
 			},
 			fn: func(conn *redigomock.Conn) {
-				conn.Command("PUBLISH", string(validJSON)).ExpectError(fmt.Errorf("invalid channel"))
+				conn.GenericCommand("PUBLISH").ExpectError(fmt.Errorf("invalid channel"))
 			},
-			err: fmt.Errorf("error publishing message to channel()"),
+			err: fmt.Errorf("error publishing message to channel(dummy_key): invalid channel"),
 			destination: Destination{
 				config: config.Config{
-					Mode: config.ModePubSub,
-					Key:  key,
+					Mode:     config.ModePubSub,
+					RedisKey: key,
+				},
+			},
+		}, {
+			name: "pubsub success",
+			data: sdk.Record{
+				Payload: sdk.RawData(validJSON),
+			},
+			fn: func(conn *redigomock.Conn) {
+				conn.GenericCommand("PUBLISH").Expect(1).ExpectError(nil)
+			},
+			err: nil,
+			destination: Destination{
+				config: config.Config{
+					Mode:     config.ModePubSub,
+					RedisKey: key,
 				},
 			},
 		},
@@ -201,8 +235,8 @@ func TestWrite(t *testing.T) {
 			},
 			destination: Destination{
 				config: config.Config{
-					Mode: config.ModeStream,
-					Key:  key,
+					Mode:     config.ModeStream,
+					RedisKey: key,
 				},
 			},
 		}, {
@@ -216,8 +250,8 @@ func TestWrite(t *testing.T) {
 			},
 			destination: Destination{
 				config: config.Config{
-					Mode: config.ModeStream,
-					Key:  key,
+					Mode:     config.ModeStream,
+					RedisKey: key,
 				},
 			},
 		},
@@ -237,6 +271,7 @@ func TestWrite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := redigomock.NewConn()
+			defer conn.Close()
 			if tt.fn != nil {
 				tt.fn(conn)
 			}
@@ -244,9 +279,39 @@ func TestWrite(t *testing.T) {
 			err := tt.destination.Write(context.Background(), tt.data)
 			if tt.err != nil {
 				assert.NotNil(t, err)
+				assert.EqualError(t, err, tt.err.Error())
 			} else {
 				assert.Nil(t, err)
 			}
+		})
+	}
+}
+
+func TestTeardown(t *testing.T) {
+	tests := []struct {
+		name   string
+		client redis.Conn
+		err    error
+	}{
+		{name: "client is nil", client: nil, err: nil},
+		{name: "close succeeds", client: redigomock.NewConn(), err: nil},
+		{name: "close fails", client: func() *redigomock.Conn {
+			conn := redigomock.NewConn()
+			conn.CloseMock = func() error {
+				return fmt.Errorf("close failed")
+			}
+			return conn
+		}(), err: fmt.Errorf("close failed")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := Destination{client: tt.client}
+			err := d.Teardown(context.Background())
+			if tt.err == nil {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tt.err.Error())
 		})
 	}
 }

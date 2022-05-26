@@ -24,10 +24,11 @@ import (
 // Specification returns the connector's specification.
 func Specification() sdk.Specification {
 	return sdk.Specification{
-		Name:    "Redis",
-		Summary: "A Redis source and destination plugin for Conduit, written in Go.",
-		Version: "v0.1.0",
-		Author:  "gopherslab,Inc.",
+		Name:        "Redis",
+		Summary:     "A Redis source and destination plugin for Conduit, written in Go.",
+		Description: "A Redis source and destination plugin for Conduit, written in Go. It supports Redis Pub/Sub and Streams.",
+		Version:     "v0.1.0",
+		Author:      "Gophers Lab Technologies Pvt Ltd",
 		DestinationParams: map[string]sdk.Parameter{
 			config.KeyHost: {
 				Default:     "localhost",
@@ -45,7 +46,7 @@ func Specification() sdk.Specification {
 				Description: "key name for connector to read.",
 			},
 			config.KeyDatabase: {
-				Default:     "",
+				Default:     "0",
 				Required:    false,
 				Description: "database name for the redis source",
 			},
@@ -53,6 +54,11 @@ func Specification() sdk.Specification {
 				Default:     "",
 				Required:    false,
 				Description: "Password to the redis source.",
+			},
+			config.KeyUsername: {
+				Default:     "",
+				Required:    false,
+				Description: "Username to the redis source.",
 			},
 			config.KeyMode: {
 				Default:     "pubsub",
@@ -77,7 +83,7 @@ func Specification() sdk.Specification {
 				Description: "key name for connector to read.",
 			},
 			config.KeyDatabase: {
-				Default:     "",
+				Default:     "0",
 				Required:    false,
 				Description: "database name for the redis source",
 			},
@@ -85,6 +91,11 @@ func Specification() sdk.Specification {
 				Default:     "",
 				Required:    false,
 				Description: "Password to the redis source.",
+			},
+			config.KeyUsername: {
+				Default:     "",
+				Required:    false,
+				Description: "Username to the redis source.",
 			},
 			config.KeyMode: {
 				Default:     "pubsub",

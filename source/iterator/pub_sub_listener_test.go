@@ -19,7 +19,9 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/gomodule/redigo/redis"
 	"github.com/rafaeljusto/redigomock"
@@ -46,7 +48,7 @@ func TestHasNext(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var cdc = PubSubIterator{records: tt.records, tomb: &tomb.Tomb{}}
-			res := cdc.HasNext(context.Background())
+			res := cdc.HasNext()
 			assert.Equal(t, res, tt.response, tt.name)
 		})
 	}
@@ -117,4 +119,76 @@ func TestNewCDCIterator(t *testing.T) {
 	assert.NotNil(t, res)
 	assert.Equal(t, response.key, res.key)
 	assert.Equal(t, response.psc, res.psc)
+}
+
+func TestNewCDCIterator_Next(t *testing.T) {
+	redisChannel := "subchannel"
+	testMessage := "some_dummy_message"
+	testMessage1 := "some_dummy_message1"
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mr.Close()
+	conn, err := redis.Dial("tcp", mr.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := PubSubIterator{
+		key:     redisChannel,
+		psc:     &redis.PubSubConn{Conn: conn},
+		records: []sdk.Record{},
+		mux:     &sync.Mutex{},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	res, err := NewPubSubIterator(ctx, conn, redisChannel)
+	assert.Nil(t, err)
+	assert.NotNil(t, res)
+	assert.Equal(t, response.key, res.key)
+	assert.Equal(t, response.psc, res.psc)
+	// publish is a fire and forget method, give a few ms for goroutines to start
+	// otherwise messages might be lost and tests will fail
+	time.Sleep(10 * time.Millisecond)
+	mr.Publish(redisChannel, testMessage)
+	mr.Publish(redisChannel, testMessage1)
+
+	var rec sdk.Record
+	ticker := time.NewTicker(400 * time.Millisecond)
+	defer ticker.Stop()
+	retryCount := 0
+	for {
+		select {
+		case <-ctx.Done():
+		case <-ticker.C:
+			rec, err = res.Next(ctx)
+			if err != nil && err == sdk.ErrBackoffRetry {
+				t.Log("backoff received, waiting for 400ms")
+				if retryCount >= 10 {
+					t.Error("retry count exceeded waiting for message, failing now")
+					return
+				}
+				retryCount++
+				continue
+			}
+			assert.NoError(t, err)
+			assert.NotEmpty(t, rec.Payload)
+			assert.Equal(t, string(rec.Payload.Bytes()), testMessage)
+
+			cancel()
+			// 2 messages were published, should not get empty record
+			rec, err = res.Next(ctx)
+			assert.NotEmpty(t, rec)
+			assert.Equal(t, string(rec.Payload.Bytes()), testMessage1)
+			assert.NoError(t, err)
+
+			// no more messages, try Next again
+			rec, err = res.Next(ctx)
+			assert.Empty(t, rec)
+			assert.EqualError(t, err, "context canceled")
+			return
+		}
+	}
 }

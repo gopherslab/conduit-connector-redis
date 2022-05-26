@@ -30,6 +30,11 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
+const (
+	keyTypeNone   = "none"
+	keyTypeStream = "stream"
+)
+
 type StreamIterator struct {
 	key             string
 	client          redis.Conn
@@ -48,15 +53,13 @@ func NewStreamIterator(ctx context.Context,
 	client redis.Conn,
 	key string,
 	pollingInterval time.Duration,
-	position sdk.Position) (*StreamIterator, error) {
+	position sdk.Position,
+) (*StreamIterator, error) {
 	keyType, err := redis.String(client.Do("TYPE", key))
 	if err != nil {
 		return nil, fmt.Errorf("error fetching type of key(%s): %w", key, err)
 	}
-	switch keyType {
-	case "none", "stream":
-	// valid key
-	default:
+	if keyType != keyTypeNone && keyType != keyTypeStream {
 		return nil, fmt.Errorf("invalid key type: %s, expected none or stream", keyType)
 	}
 
@@ -77,8 +80,10 @@ func NewStreamIterator(ctx context.Context,
 		lastID:          lastID,
 		pollingInterval: pollingInterval,
 		ticker:          ticker,
-		caches:          make(chan []sdk.Record),
-		buffer:          make(chan sdk.Record, 1),
+		// keeping the buffer length as 1, so that we are not blocked by one cache
+		// we have other batch of records ready once first batch is read
+		caches: make(chan []sdk.Record, 1),
+		buffer: make(chan sdk.Record, 1),
 	}
 
 	cdc.tomb.Go(cdc.startIterator(ctx))
@@ -88,7 +93,7 @@ func NewStreamIterator(ctx context.Context,
 }
 
 // HasNext returns whether there are any more records to be returned
-func (i *StreamIterator) HasNext(_ context.Context) bool {
+func (i *StreamIterator) HasNext() bool {
 	return len(i.buffer) > 0 || !i.tomb.Alive() // if tomb is dead we return true so caller will fetch error with Next
 }
 
@@ -161,46 +166,44 @@ func (i *StreamIterator) flush() error {
 			return i.tomb.Err()
 		case cache := <-i.caches:
 			for _, record := range cache {
-				i.buffer <- record
+				select {
+				case <-i.tomb.Dying():
+					return i.tomb.Err()
+				case i.buffer <- record:
+				}
 			}
 		}
 	}
 }
 
 // toRecords parses the XREAD command's response and returns a slice of sdk.Record
+// The response from redis XREAD is of the format:
+//[
+//  [
+//    <redis_key>,
+//    [
+//      [
+//        <msg_id>,
+//        [
+//          <key>,
+//          <value>,
+//        ]
+//      ]
+//    ]
+//  ]
+//]
+
 func toRecords(resp []interface{}) ([]sdk.Record, error) {
 	records := make([]sdk.Record, 0)
 	for _, iKey := range resp {
-		keyInfo, ok := iKey.([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("iKey: invalid data type encountered, expected:%T, got:%T", keyInfo, iKey)
-		}
-		key, ok := keyInfo[0].([]byte)
-		if !ok {
-			return nil, fmt.Errorf("keyInfo[0]: invalid data type encountered, expected:%T, got:%T", key, keyInfo[0])
-		}
-		idList, ok := keyInfo[1].([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("keyInfo[0]:invalid data type encountered, expected:%T, got:%T", idList, keyInfo[1])
+		key, idList, err := parseKeyData(iKey)
+		if err != nil {
+			return nil, err
 		}
 		for _, iID := range idList {
-			idInfo, ok := iID.([]interface{})
-			if !ok {
-				return nil, fmt.Errorf("iID:invalid data type encountered, expected:%T, got:%T", idInfo, iID)
-			}
-			position, ok := idInfo[0].([]byte)
-			if !ok {
-				return records, fmt.Errorf("idInfo[0]:error invalid id type received %T expected: %T", idInfo[0], position)
-			}
-			posParts := strings.Split(string(position), "-")
-			ts, err := strconv.ParseInt(posParts[0], 10, 64)
-			if err != nil || ts == 0 {
-				// ignore the error, in case of custom id, we will use time.Now()
-				ts = time.Now().UnixMilli()
-			}
-			fieldList, ok := idInfo[1].([]interface{})
-			if !ok {
-				return nil, fmt.Errorf("idInfo[1]:invalid data type encountered, expected:%T, got:%T", idInfo[1], fieldList)
+			position, fieldList, err := parsePositionData(iID)
+			if err != nil {
+				return nil, err
 			}
 			rMap, err := arrInterfaceToMap(fieldList)
 			if err != nil {
@@ -211,10 +214,12 @@ func toRecords(resp []interface{}) ([]sdk.Record, error) {
 				return records, fmt.Errorf("error marshaling the map: %w", err)
 			}
 			records = append(records, sdk.Record{
-				Position:  position,
-				Metadata:  nil,
-				CreatedAt: time.UnixMilli(ts),
-				Key:       sdk.RawData(position),
+				Position: position,
+				Metadata: map[string]string{
+					"key": string(key),
+				},
+				CreatedAt: getTimeFromPosition(string(position)),
+				Key:       sdk.RawData(key),
 				Payload:   sdk.RawData(payload),
 			})
 		}
@@ -222,7 +227,78 @@ func toRecords(resp []interface{}) ([]sdk.Record, error) {
 	return records, nil
 }
 
+// parseKeyData parses the data for each key received in the XREAD response, the sample input is:
+//  [
+//    <redis_key>,
+//    [
+//      [
+//        <msg_id>,
+//        [
+//          <key>,
+//          <value>,
+//        ]
+//      ]
+//    ]
+//  ]
+func parseKeyData(d interface{}) ([]byte, []interface{}, error) {
+	keyInfo, ok := d.([]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("iKey: invalid data type encountered, expected:%T, got:%T", keyInfo, d)
+	}
+	key, ok := keyInfo[0].([]byte)
+	if !ok {
+		return nil, nil, fmt.Errorf("keyInfo[0]: invalid data type encountered, expected:%T, got:%T", key, keyInfo[0])
+	}
+	idList, ok := keyInfo[1].([]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("keyInfo[0]:invalid data type encountered, expected:%T, got:%T", idList, keyInfo[1])
+	}
+	return key, idList, nil
+}
+
+// parsePositionData parses the id array (multiple messages) of a key, the sample input is:
+//      [
+//        <msg_id>,
+//        [
+//          <key>,
+//          <value>,
+//        ]
+//      ]
+func parsePositionData(i interface{}) ([]byte, []interface{}, error) {
+	idInfo, ok := i.([]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("iID:invalid data type encountered, expected:%T, got:%T", idInfo, i)
+	}
+	position, ok := idInfo[0].([]byte)
+	if !ok {
+		return nil, nil, fmt.Errorf("idInfo[0]:error invalid id type received %T expected: %T", idInfo[0], position)
+	}
+	fieldList, ok := idInfo[1].([]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("idInfo[1]:invalid data type encountered, expected:%T, got:%T", idInfo[1], fieldList)
+	}
+	return position, fieldList, nil
+}
+
+// getTimeFromPosition parses the id of a stream message to retrieve the creation time, if available,
+// otherwise return current time.
+// Message pushed to stream with auto generated id have the following format for id: <current_time_ms-int>
+func getTimeFromPosition(pos string) time.Time {
+	posParts := strings.Split(pos, "-")
+	ts, err := strconv.ParseInt(posParts[0], 10, 64)
+	if err != nil || ts == 0 {
+		// ignore the error, in case of custom id, we will use time.Now()
+		ts = time.Now().UnixMilli()
+	}
+	return time.UnixMilli(ts)
+}
+
 // arrInterfaceToMap converts the stream key-val response to map[string]string
+// sample input being:
+//        [
+//          <key>,
+//          <value>,
+//        ]
 func arrInterfaceToMap(values []interface{}) (map[string]string, error) {
 	if len(values)%2 != 0 {
 		return nil, fmt.Errorf("arrInterfaceToMap expects even number of values result, got %d", len(values))

@@ -129,7 +129,7 @@ func TestStreamIterator_HasNext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cdc := &StreamIterator{buffer: make(chan sdk.Record, 1), tomb: &tomb.Tomb{}}
 			tt.fn(cdc)
-			res := cdc.HasNext(context.Background())
+			res := cdc.HasNext()
 			assert.Equal(t, res, tt.response)
 		})
 	}
@@ -175,11 +175,13 @@ func TestStartIterator(t *testing.T) {
 		cancel()
 		assert.Len(t, cache, 1)
 		assert.Equal(t, []sdk.Record{{
-			Position:  []byte("1652107432000-0"),
-			Metadata:  nil,
+			Position: []byte("1652107432000-0"),
+			Metadata: map[string]string{
+				"key": key,
+			},
 			CreatedAt: time.UnixMilli(1652107432000),
-			Key:       sdk.RawData([]byte("1652107432000-0")),
-			Payload:   sdk.RawData([]byte(`{"key":"value"}`)),
+			Key:       sdk.RawData(key),
+			Payload:   sdk.RawData(`{"key":"value"}`),
 		}}, cache)
 	case <-ctx.Done():
 		t.Error("no data received in cache channel")

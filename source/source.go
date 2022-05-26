@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate mockery --name=Iterator --outpkg mocks
+
 package source
 
 import (
@@ -34,12 +36,10 @@ type Source struct {
 }
 
 type Iterator interface {
-	HasNext(ctx context.Context) bool
+	HasNext() bool
 	Next(ctx context.Context) (sdk.Record, error)
 	Stop() error
 }
-
-//go:generate mockery --name=Iterator --outpkg mocks
 
 // NewSource returns an instance of sdk.Source
 func NewSource() sdk.Source {
@@ -48,7 +48,7 @@ func NewSource() sdk.Source {
 
 // Configure validates the passed config and prepares the source connector
 func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
-	sdk.Logger(ctx).Info().Msg("Configuring a Source Connector...")
+	sdk.Logger(ctx).Trace().Msg("Configuring a Source Connector...")
 	conf, err := config.Parse(cfg)
 	if err != nil {
 		return fmt.Errorf("error parsing config: %w", err)
@@ -61,13 +61,13 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 func (s *Source) Open(ctx context.Context, position sdk.Position) error {
 	address := s.config.Host + ":" + s.config.Port
 	dialOptions := make([]redis.DialOption, 0)
-
 	if s.config.Password != "" {
 		dialOptions = append(dialOptions, redis.DialPassword(s.config.Password))
 	}
-	if s.config.Database >= 0 {
-		dialOptions = append(dialOptions, redis.DialDatabase(s.config.Database))
+	if s.config.Username != "" {
+		dialOptions = append(dialOptions, redis.DialUsername(s.config.Username))
 	}
+	dialOptions = append(dialOptions, redis.DialDatabase(s.config.Database))
 
 	redisClient, err := redis.DialContext(ctx, "tcp", address, dialOptions...)
 	if err != nil {
@@ -76,12 +76,12 @@ func (s *Source) Open(ctx context.Context, position sdk.Position) error {
 
 	switch s.config.Mode {
 	case config.ModePubSub:
-		s.iterator, err = iterator.NewPubSubIterator(ctx, redisClient, s.config.Key)
+		s.iterator, err = iterator.NewPubSubIterator(ctx, redisClient, s.config.RedisKey)
 		if err != nil {
 			return fmt.Errorf("couldn't create a pubsub iterator: %w", err)
 		}
 	case config.ModeStream:
-		s.iterator, err = iterator.NewStreamIterator(ctx, redisClient, s.config.Key, s.config.PollingPeriod, position)
+		s.iterator, err = iterator.NewStreamIterator(ctx, redisClient, s.config.RedisKey, s.config.PollingPeriod, position)
 		if err != nil {
 			return fmt.Errorf("couldn't create a stream iterator: %w", err)
 		}
@@ -94,7 +94,7 @@ func (s *Source) Open(ctx context.Context, position sdk.Position) error {
 
 // Read gets the next object
 func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
-	if !s.iterator.HasNext(ctx) {
+	if !s.iterator.HasNext() {
 		return sdk.Record{}, sdk.ErrBackoffRetry
 	}
 	rec, err := s.iterator.Next(ctx)
@@ -106,7 +106,7 @@ func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
 
 // Ack is called by the conduit server after the record has been successfully processed by all destination connectors
 func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
-	sdk.Logger(ctx).Info().
+	sdk.Logger(ctx).Debug().
 		Str("position", string(position)).
 		Str("mode", string(s.config.Mode)).
 		Msg("position ack received")
