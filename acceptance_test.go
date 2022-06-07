@@ -17,8 +17,6 @@ limitations under the License.
 package redis
 
 import (
-	"context"
-	"errors"
 	"fmt"
 
 	"math/rand"
@@ -31,13 +29,11 @@ import (
 	"github.com/conduitio/conduit-connector-redis/destination"
 	"github.com/conduitio/conduit-connector-redis/source"
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	"github.com/matryer/is"
 	"go.uber.org/goleak"
 )
 
 const (
-	sourceKey = "dummy_key_source"
-	destKey   = "dummy_key_dest"
+	key = "dummy_key"
 )
 
 func TestAcceptance(t *testing.T) {
@@ -49,14 +45,14 @@ func TestAcceptance(t *testing.T) {
 	sourceConf := map[string]string{
 		config.KeyHost:          mr.Host(),
 		config.KeyPort:          mr.Port(),
-		config.KeyRedisKey:      sourceKey,
+		config.KeyRedisKey:      key,
 		config.KeyMode:          string(config.ModeStream),
 		config.KeyPollingPeriod: time.Millisecond.String(),
 	}
 	destConf := map[string]string{
 		config.KeyHost:     mr.Host(),
 		config.KeyPort:     mr.Port(),
-		config.KeyRedisKey: destKey,
+		config.KeyRedisKey: key,
 		config.KeyMode:     string(config.ModeStream),
 	}
 
@@ -70,11 +66,6 @@ func TestAcceptance(t *testing.T) {
 			SourceConfig:      sourceConf,
 			DestinationConfig: destConf,
 			GoleakOptions:     []goleak.Option{goleak.IgnoreCurrent()},
-			Skip: []string{
-				// It calls Write & WriteAsync function directly, with non structure data generated using random strings
-				// and there is no option to substitute existing generateRecords function
-				"TestDestination_Write_Success",
-			},
 			AfterTest: func(t *testing.T) {
 				mr.FlushAll()
 			},
@@ -89,72 +80,23 @@ type AcceptanceTestDriver struct {
 	sdk.ConfigurableAcceptanceTestDriver
 }
 
-func (d AcceptanceTestDriver) WriteToSource(t *testing.T, records []sdk.Record) []sdk.Record {
-	if d.Connector().NewDestination == nil {
-		t.Fatal("connector is missing the field NewDestination, either implement the destination or overwrite the driver method Write")
-	}
-
-	is := is.New(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// writing something to the destination should result in the same record
-	// being produced by the source
-	dest := d.Connector().NewDestination()
-	// write to source and not the destination
-	destConfig := d.SourceConfig(t)
-	err := dest.Configure(ctx, destConfig)
-	is.NoErr(err)
-
-	err = dest.Open(ctx)
-	is.NoErr(err)
-	records = d.generateRecords(len(records))
-	// try to write using WriteAsync and fallback to Write if it's not supported
-	err = d.write(ctx, dest, records)
-	is.NoErr(err)
-
-	cancel() // cancel context to simulate stop
-	err = dest.Teardown(context.Background())
-	is.NoErr(err)
-
-	return records
-}
-
-// write records to destination using Destination.Write.
-func (d AcceptanceTestDriver) write(ctx context.Context, dest sdk.Destination, records []sdk.Record) error {
-	for _, r := range records {
-		err := dest.Write(ctx, r)
-		if err != nil {
-			return err
-		}
-	}
-
-	// flush to make sure the records get written to the destination, but allow
-	// it to be unimplemented
-	err := dest.Flush(ctx)
-	if err != nil && !errors.Is(err, sdk.ErrUnimplemented) {
-		return err
-	}
-
-	// records were successfully written
-	return nil
-}
-
-func (d AcceptanceTestDriver) generateRecords(count int) []sdk.Record {
-	records := make([]sdk.Record, count)
-	for i := range records {
-		records[i] = d.generateRecord()
-	}
-	return records
-}
-
-func (d AcceptanceTestDriver) generateRecord() sdk.Record {
+// GenerateRecord overrides the pre-defined generate record function to generate the records in required format
+// Sample Record:
+// {
+//	"metadata": {
+//		"key": "dummy_key"
+//	},
+//	"created_at": "0001-01-01 00:00:00 +0000 UTC",
+//	"key": "dummy_key",
+//	"payload": "{\"key\":\"value\"}"
+//}
+func (d AcceptanceTestDriver) GenerateRecord(t *testing.T) sdk.Record {
 	return sdk.Record{
 		Metadata: map[string]string{
-			"key": sourceKey,
+			"key": key,
 		},
 		CreatedAt: time.Time{},
-		Key:       sdk.RawData(sourceKey),
+		Key:       sdk.RawData(key),
 		Payload:   sdk.RawData(fmt.Sprintf(`{"%s":"%s"}`, d.randString(32), d.randString(32))),
 	}
 }
